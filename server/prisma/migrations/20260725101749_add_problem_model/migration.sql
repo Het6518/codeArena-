@@ -21,6 +21,8 @@ CREATE TABLE "Problem" (
     CONSTRAINT "Problem_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
 CREATE UNIQUE INDEX "Problem_title_key" ON "Problem"("title");
 
+-- CreateIndex
 CREATE UNIQUE INDEX "Problem_slug_key" ON "Problem"("slug");

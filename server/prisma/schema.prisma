@@ -44,8 +44,25 @@ model Problem {
   memoryLimitMb Int               @default(256)
   isPublished   Boolean           @default(false)
 
+  testCases     TestCase[]
+
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+}
+
+model TestCase {
+  id             String   @id @default(cuid())
+  problemId      String
+  input          String   @db.Text
+  expectedOutput String   @db.Text
+  isHidden       Boolean  @default(false)
+
+  problem        Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([problemId])
 }
 
 enum ProblemDifficulty {
