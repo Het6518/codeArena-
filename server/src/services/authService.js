@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
 const SALT_ROUNDS = 10;
@@ -75,6 +76,61 @@ const registerUser = async ({ username, email, password }) => {
   }
 };
 
+const loginUser = async ({ email, password }) => {
+  if (!email || !password) {
+    throw createHttpError('Email and password are required', 400);
+  }
+
+  if (!process.env.JWT_SECRET) {
+    throw createHttpError('JWT secret is not configured', 500);
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPassword = password.trim();
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: cleanEmail,
+    },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      password: true,
+      rating: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    throw createHttpError('Invalid email or password', 401);
+  }
+
+  const isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
+
+  if (!isPasswordValid) {
+    throw createHttpError('Invalid email or password', 401);
+  }
+
+  const token = jwt.sign(
+    { userId: user.id },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  ); // jwt token is generated or created here with the user id and secret key and expires in 30 days
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      rating: user.rating,
+      createdAt: user.createdAt,
+    },
+  };
+};
+
 module.exports = {
+  loginUser,
   registerUser,
 };
