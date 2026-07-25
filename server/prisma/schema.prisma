@@ -13,21 +13,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  email     String   @unique
-  password  String
+  id          String       @id @default(cuid())
+  username    String       @unique
+  email       String       @unique
+  password    String
 
-  avatar    String?
-  bio       String?
+  avatar      String?
+  bio         String?
 
-  rating    Int      @default(1200)
-  wins      Int      @default(0)
-  losses    Int      @default(0)
-  draws     Int      @default(0)
+  rating      Int          @default(1200)
+  wins        Int          @default(0)
+  losses      Int          @default(0)
+  draws       Int          @default(0)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  submissions Submission[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Problem {
@@ -45,6 +47,7 @@ model Problem {
   isPublished   Boolean           @default(false)
 
   testCases     TestCase[]
+  submissions   Submission[]
 
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -65,8 +68,36 @@ model TestCase {
   @@index([problemId])
 }
 
+model Submission {
+  id         String           @id @default(cuid())
+  userId     String
+  problemId  String
+  language   String
+  sourceCode String           @db.Text
+  status     SubmissionStatus @default(PENDING)
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem    Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([problemId])
+  @@index([userId, problemId])
+}
+
 enum ProblemDifficulty {
   EASY
   MEDIUM
   HARD
+}
+
+enum SubmissionStatus {
+  PENDING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILATION_ERROR
 }
