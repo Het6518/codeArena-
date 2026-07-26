@@ -13,23 +13,25 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(cuid())
-  username    String       @unique
-  email       String       @unique
-  password    String
+  id                String             @id @default(cuid())
+  username          String             @unique
+  email             String             @unique
+  password          String
 
-  avatar      String?
-  bio         String?
+  avatar            String?
+  bio               String?
 
-  rating      Int          @default(1200)
-  wins        Int          @default(0)
-  losses      Int          @default(0)
-  draws       Int          @default(0)
+  rating            Int                @default(1200)
+  wins              Int                @default(0)
+  losses            Int                @default(0)
+  draws             Int                @default(0)
 
-  submissions Submission[]
+  submissions       Submission[]
+  hostedBattleRooms BattleRoom[]       @relation("BattleRoomHost")
+  battleRoomPlayers BattleRoomPlayer[]
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Problem {
@@ -48,6 +50,7 @@ model Problem {
 
   testCases     TestCase[]
   submissions   Submission[]
+  battleRooms   BattleRoom[]
 
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -87,6 +90,44 @@ model Submission {
   @@index([userId, problemId])
 }
 
+model BattleRoom {
+  id                String             @id @default(cuid())
+  roomCode          String             @unique
+  status            RoomStatus         @default(WAITING)
+  hostId            String
+  selectedProblemId String?
+  startedAt         DateTime?
+
+  host              User               @relation("BattleRoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+  selectedProblem   Problem?           @relation(fields: [selectedProblemId], references: [id], onDelete: SetNull)
+  players           BattleRoomPlayer[]
+
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([hostId])
+  @@index([selectedProblemId])
+}
+
+model BattleRoomPlayer {
+  id        String     @id @default(cuid())
+  roomId    String
+  userId    String
+  isHost    Boolean    @default(false)
+  ready     Boolean    @default(false)
+  joinedAt  DateTime   @default(now())
+
+  room      BattleRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
 enum ProblemDifficulty {
   EASY
   MEDIUM
@@ -100,4 +141,10 @@ enum SubmissionStatus {
   TIME_LIMIT_EXCEEDED
   RUNTIME_ERROR
   COMPILATION_ERROR
+}
+
+enum RoomStatus {
+  WAITING
+  READY
+  IN_PROGRESS
 }
