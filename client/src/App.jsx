@@ -1,88 +1,18 @@
+import { useEffect } from 'react';
 import { AppRouter } from './router/AppRouter';
+import { useAuthStore } from './store/useAuthStore';
+import { useThemeStore } from './store/useThemeStore';
 
 function App() {
+  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
+
+  useEffect(() => {
+    initializeTheme();
+    initializeAuth();
+  }, [initializeAuth, initializeTheme]);
+
   return <AppRouter />;
 }
 
 export default App;
-
-
-/*
-Browser
-    │
-    ▼
-index.html
-    │
-    ▼
-main.jsx
-    │
-    ▼
-<App />
-    │
-    ▼
-<AppRouter />
-    │
-    ▼
-RouterProvider
-    │
-    ▼
-Match URL "/"
-    │
-    ▼
-RootLayout
-    │
-    ▼
-Outlet
-    │
-    ▼
-HomePage
-    │
-    ▼
-ProblemList
-    │
-    ▼
-ProblemCard
-*/
-
-/*
-HomePage
-      │
-      ▼
-Axios GET /problems
-      │
-      ▼
-Request Interceptor
-      │
-      ▼
-Express
-      │
-      ▼
-Controller
-      │
-      ▼
-Service
-      │
-      ▼
-Prisma
-      │
-      ▼
-PostgreSQL
-      │
-      ▼
-JSON Response
-      │
-      ▼
-Axios Response Interceptor
-      │
-      ▼
-setProblems(...)
-      │
-      ▼
-React Re-render
-      │
-      ▼
-Updated UI
-*/
-/*
-axios is a promise-based HTTP client for the browser and Node.js. It makes it easy to send asynchronous HTTP requests to REST endpoints and perform CRUD operations. It also supports the Promise API that is native to JS .
-*/
