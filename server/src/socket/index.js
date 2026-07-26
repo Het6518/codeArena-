@@ -13,12 +13,12 @@ const initializeSocket = (server) => {
   io.use(socketAuth);
 
   io.on('connection', (socket) => {
+    registerRoomHandlers(io, socket);
+
     socket.emit('socket-connected', {
       success: true,
       userId: socket.user.id,
     });
-
-    registerRoomHandlers(io, socket);
   });
 
   return io;
