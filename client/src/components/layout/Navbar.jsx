@@ -18,7 +18,7 @@ export function Navbar({ onToggleMobileSidebar, isMobileSidebarOpen }) {
         </button>
 
         <Link to="/dashboard" className="navbar-logo-link" aria-label="CodeArena Home">
-          <Logo compact />
+          {/* <Logo compact /> */}
           <span className="brand-title">
             Code<span className="brand-highlight">Arena</span>
           </span>
