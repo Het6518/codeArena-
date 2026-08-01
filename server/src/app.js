@@ -13,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', authRoutes);
 app.use('/api/problems', problemRoutes);
 app.use('/api/problems/:problemId/testcases', testCaseRoutes);
 app.use('/api/submissions', submissionRoutes);
