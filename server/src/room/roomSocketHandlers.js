@@ -114,7 +114,48 @@ const registerRoomHandlers = (io, socket) => {
       sendError(socket, 'room-error', error, callback);
     }
   });
+socket.on('battle-first-submit-wins', async (payload, callback) => {
+  try {
+    const roomCode = (payload && payload.roomCode) || socket.data.roomCode;
 
+    const room = RoomService.getRoom(roomCode);
+
+    if (!room) {
+      throw new Error('Room not found');
+    }
+
+    // Someone already won
+    if (room.winnerUsername) { // winnerUsername is still not there in the schema, so we need to add it in the room model in the database and also in the RoomService.
+      if (typeof callback === 'function') {
+        callback({
+          success: false,
+          message: 'Battle already finished',
+        });
+      }
+      return;
+    }
+
+    // First submission wins
+    room.winnerUsername = payload.winnerUsername;
+    room.finished = true;
+
+    io.to(roomCode).emit('battle-first-submit-wins', {
+      success: true,
+      winnerUsername: room.winnerUsername,
+    });
+
+    broadcastRoomUpdate(io, room);
+
+    if (typeof callback === 'function') {
+      callback({
+        success: true,
+        winnerUsername: room.winnerUsername,
+      });
+    }
+  } catch (error) {
+    sendError(socket, 'room-error', error, callback);
+  }
+});
   socket.on('leave-room', async (payload, callback) => {
     try {
       const roomCode = (payload && payload.roomCode) || socket.data.roomCode;
