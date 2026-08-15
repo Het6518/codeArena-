@@ -19,39 +19,56 @@ import { submissionService } from '../services/submissionService';
 import toast from 'react-hot-toast';
 
 const DEFAULT_BOILERPLATES = {
-  javascript: `/**
- * @param {number[]} nums
- * @param {number} target
- * @return {number[]}
- */
-function solution(nums, target) {
-    // Write your algorithm solution here
-    return [0, 1];
-};`,
-  python: `class Solution:
-    def solve(self, nums: list[int], target: int) -> list[int]:
-        # Write your algorithm solution here
-        return [0, 1]`,
-  cpp: `#include <vector>
+  javascript: `const fs = require('fs');
+const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/).map(Number);
+
+const a = input[0];
+const b = input[1];
+
+console.log(a + b);`,
+  python: `import sys
+
+numbers = list(map(int, sys.stdin.read().strip().split()))
+a, b = numbers[0], numbers[1]
+
+print(a + b)`,
+  cpp: `#include <bits/stdc++.h>
 using namespace std;
 
-class Solution {
-public:
-    vector<int> solve(vector<int>& nums, int target) {
-        // Write your algorithm solution here
-        return {0, 1};
-    }
-};`,
+int main() {
+    long long a, b;
+    cin >> a >> b;
+    cout << a + b << '\n';
+    return 0;
+}`,
   java: `import java.util.*;
 
-class Solution {
-    public int[] solve(int[] nums, int target) {
-        // Write your algorithm solution here
-        return new int[]{0, 1};
+class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        long a = sc.nextLong();
+        long b = sc.nextLong();
+        System.out.println(a + b);
     }
 }`,
 };
 
+const getSubmissionMessage = (status) => {
+  switch (status) {
+    case 'ACCEPTED':
+      return 'All database test cases passed.';
+    case 'WRONG_ANSWER':
+      return 'Your output did not match the expected output for at least one test case.';
+    case 'COMPILATION_ERROR':
+      return 'The compiler rejected the submitted source code.';
+    case 'RUNTIME_ERROR':
+      return 'The program crashed while running a test case.';
+    case 'TIME_LIMIT_EXCEEDED':
+      return 'The program took too long to finish.';
+    default:
+      return 'Submission was recorded.';
+  }
+};
 export function ProblemWorkspacePage() {
   const { slug } = useParams();
   
@@ -148,11 +165,11 @@ export function ProblemWorkspacePage() {
 
       setIsSubmitting(false);
       setExecutionResult({
-        status: response.submission?.status || 'ACCEPTED',
+        status: response.submission?.status || 'PENDING',
         runtime: '45 ms',
         memory: '41.8 MB',
-        passedCount: 'All Test Cases Passed',
-        output: 'Accepted solution recorded in database.',
+        passedCount: response.submission?.status === 'ACCEPTED' ? 'All Test Cases Passed' : 'Some Test Cases Failed',
+        output: getSubmissionMessage(response.submission?.status),
       });
       toast.success('Submission evaluation complete!');
     } catch (err) {
@@ -405,3 +422,5 @@ export function ProblemWorkspacePage() {
     </div>
   );
 }
+
+
