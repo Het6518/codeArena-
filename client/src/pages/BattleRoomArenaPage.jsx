@@ -19,21 +19,29 @@ import { submissionService } from '../services/submissionService';
 import toast from 'react-hot-toast';
 
 const DEFAULT_BOILERPLATES = {
-  javascript: `/**
- * @param {number[]} nums
- * @param {number} target
- * @return {number[]}
- */
-function solution(nums, target) {
-    // Write your competitive battle solution here
-    return [0, 1];
-};`,
-  python: `class Solution:
-    def solve(self, nums, target):
-        # Write your competitive battle solution here
-        return [0, 1]`,
-};
+  javascript: `const fs = require('fs');
+const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/).map(Number);
 
+const a = input[0];
+const b = input[1];
+
+console.log(a + b);`,
+  python: `import sys
+
+numbers = list(map(int, sys.stdin.read().strip().split()))
+a, b = numbers[0], numbers[1]
+
+print(a + b)`,
+  cpp: `#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    long long a, b;
+    cin >> a >> b;
+    cout << a + b << '\n';
+    return 0;
+}`,
+};
 export function BattleRoomArenaPage() {
   const { roomCode } = useParams();
   const navigate = useNavigate();
@@ -302,6 +310,7 @@ export function BattleRoomArenaPage() {
             >
               <option value="javascript">JavaScript (ES6)</option>
               <option value="python">Python 3</option>
+              <option value="cpp">C++ 17</option>
             </select>
 
             <button
@@ -348,3 +357,4 @@ export function BattleRoomArenaPage() {
     </div>
   );
 }
+
