@@ -1,4 +1,7 @@
 const prisma = require('../config/prisma');
+const onlineCompilerConfig = require('../config/onlineCompilerConfig');
+const { evaluateSubmissionAgainstTestCases } = require('../execution/executionService');
+const { getCompilerForLanguage } = require('../execution/providers/onlineCompilerLanguageMap');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -36,6 +39,8 @@ const validateSubmissionInput = ({ problemId, language, sourceCode }) => {
   if (typeof sourceCode !== 'string' || !sourceCode.trim()) {
     throw createHttpError('Source code must be a valid string', 400);
   }
+
+  getCompilerForLanguage(language);
 };
 
 const submissionSelect = {
@@ -70,6 +75,17 @@ const createSubmission = async (userId, data) => {
     },
     select: {
       id: true,
+      testCases: {
+        take: onlineCompilerConfig.maxTestCasesPerProblem,
+        orderBy: {
+          createdAt: 'asc',
+        },
+        select: {
+          id: true,
+          input: true,
+          expectedOutput: true,
+        },
+      },
     },
   });
 
@@ -77,13 +93,40 @@ const createSubmission = async (userId, data) => {
     throw createHttpError('Problem not found', 404);
   }
 
-  return prisma.submission.create({
+  if (!problem.testCases.length) {
+    throw createHttpError('Problem has no test cases configured', 400);
+  }
+
+  const initialSubmission = await prisma.submission.create({
     data: {
       userId,
       problemId: cleanProblemId,
       language: cleanLanguage,
       sourceCode: cleanSourceCode,
       status: 'PENDING',
+    },
+    select: submissionSelect,
+  });
+
+  let finalStatus;
+
+  try {
+    finalStatus = await evaluateSubmissionAgainstTestCases({
+      sourceCode: cleanSourceCode,
+      language: cleanLanguage,
+      testCases: problem.testCases,
+    });
+  } catch (error) {
+    error.submissionId = initialSubmission.id;
+    throw error;
+  }
+
+  return prisma.submission.update({
+    where: {
+      id: initialSubmission.id,
+    },
+    data: {
+      status: finalStatus,
     },
     select: submissionSelect,
   });
