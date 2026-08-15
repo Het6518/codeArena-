@@ -83,6 +83,7 @@ const createSubmission = async (userId, data) => {
       problemId: cleanProblemId,
       language: cleanLanguage,
       sourceCode: cleanSourceCode,
+      status: 'PENDING',
     },
     select: submissionSelect,
   });
