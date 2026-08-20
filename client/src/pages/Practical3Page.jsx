@@ -15,17 +15,17 @@ function Practical3Page() {
       </header>
 
       <section className="responsive-section">
-        <h2>1. Viewport Meta Tag</h2>
+        {/* <h2>1. Viewport Meta Tag</h2>
 
         <p>
           This page uses the viewport meta tag to make the webpage responsive
           on different devices.
-        </p>
+        </p> */}
 
-        <code>
+        {/* <code>
           &lt;meta name="viewport" content="width=device-width,
           initial-scale=1.0" /&gt;
-        </code>
+        </code> */}
       </section>
 
       <section className="responsive-section">
