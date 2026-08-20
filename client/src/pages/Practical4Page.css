@@ -1,0 +1,124 @@
+.practical4 {
+  min-height: 100vh;
+  padding: 40px 5%;
+  background: #f5f7fa;
+  color: #1f2937;
+}
+
+.practical4-header {
+  width: 90%;
+  max-width: 1000px;
+  margin: 0 auto 30px;
+  text-align: center;
+}
+
+.practical4-header h1 {
+  margin-bottom: 10px;
+}
+
+.api-card {
+  width: 90%;
+  max-width: 1000px;
+  margin: 25px auto;
+  padding: 25px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.api-card h2 {
+  margin-bottom: 12px;
+}
+
+.api-card button {
+  margin-top: 10px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+}
+
+.secondary-button {
+  margin-left: 10px;
+  background: #6b7280 !important;
+}
+
+.result-box {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+.error-message {
+  margin-top: 15px;
+  color: #dc2626;
+}
+
+.input-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+}
+
+.drag-container {
+  display: flex;
+  gap: 30px;
+  margin-top: 25px;
+}
+
+.drag-list,
+.drop-zone {
+  flex: 1;
+  min-height: 250px;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.drag-list {
+  background: #f3f4f6;
+}
+
+.drop-zone {
+  border: 2px dashed #9ca3af;
+  text-align: center;
+}
+
+.drag-item,
+.dropped-item {
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 7px;
+  cursor: grab;
+  background: #dbeafe;
+}
+
+.dropped-item {
+  cursor: default;
+  background: #dcfce7;
+}
+
+@media (max-width: 700px) {
+  .drag-container {
+    flex-direction: column;
+  }
+
+  .api-card {
+    width: 96%;
+    padding: 18px;
+  }
+
+  .input-row {
+    flex-direction: column;
+  }
+}

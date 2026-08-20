@@ -3,7 +3,8 @@ import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { RegisterPage } from '../features/auth/pages/RegisterPage';
 import { ProtectedRoute } from './ProtectedRoute';
-
+import Practical3Page from "../pages/Practical3Page";
+import Practical4Page from "../pages/Practical4Page";
 const router = createBrowserRouter([
   {
     path: '/',
@@ -25,7 +26,16 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  {
+  path: "/practical-3",
+  element: <Practical3Page />,
+},
+{
+  path: "/practical-4",
+  element: <Practical4Page />,
+},
 ]);
+
 
 export function AppRouter() {
   return <RouterProvider router={router} />;
