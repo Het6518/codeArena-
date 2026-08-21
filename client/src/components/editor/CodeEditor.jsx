@@ -18,7 +18,7 @@ export function CodeEditor({ value, onChange, language = 'javascript' }) {
           fontSize: 14,
           fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
           minimap: { enabled: false },
-          scrollBeyondLastLine: true,
+          scrollBeyondLastLine: false ,
           automaticLayout: true,
           tabSize: 2,
           padding: { top: 12, bottom: 12 },

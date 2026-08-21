@@ -79,10 +79,11 @@ export function ProblemWorkspacePage() {
   const [activeTab, setActiveTab] = useState('description'); // 'description' | 'submissions'
   const [language, setLanguage] = useState('javascript');
   const [code, setCode] = useState(DEFAULT_BOILERPLATES.javascript);
-
+  const [editorHeight, setEditorHeight] = useState(70);
+  const [isDragging, setIsDragging] = useState(false);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-
+  //const [dragging , isDragging ] = useState(false ) ;
   const [testTab, setTestTab] = useState('testcase'); // 'testcase' | 'result'
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -206,7 +207,37 @@ export function ProblemWorkspacePage() {
       </div>
     );
   }
+const handleResizeStart = (e) => {
+  e.preventDefault();
+  setIsDragging(true);
 
+  const startY = e.clientY;
+  const startHeight = editorHeight;
+
+  const handleMouseMove = (moveEvent) => {
+    const rightPanel = document.querySelector('.right-panel');
+
+    if (!rightPanel) return;
+
+    const rect = rightPanel.getBoundingClientRect();
+    const delta = moveEvent.clientY - startY;
+
+    const deltaPercent = (delta / rect.height) * 100;
+    const newHeight = startHeight + deltaPercent;
+
+    setEditorHeight(Math.min(90, Math.max(20, newHeight)));
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
   return (
     <div className="leetcode-workspace animate-fade-in">
       {/* Workspace Split Layout */}
@@ -324,8 +355,6 @@ export function ProblemWorkspacePage() {
               <span>Reset</span>
             </button>
           </div>
-
-          {/* Monaco Editor Container */}
           <div className="editor-workspace-container">
             <CodeEditor
               value={code}
@@ -334,7 +363,7 @@ export function ProblemWorkspacePage() {
             />
           </div>
 
-          {/* Bottom Console / Testcase Panel */}
+         
           <div className="console-panel">
             <div className="console-tab-bar">
               <button
@@ -395,7 +424,7 @@ export function ProblemWorkspacePage() {
               )}
             </div>
 
-            {/* Bottom Actions Bar */}
+       
             <div className="console-actions-bar">
               <Button
                 variant="secondary"
@@ -416,7 +445,7 @@ export function ProblemWorkspacePage() {
                 <span>Submit</span>
               </Button>
             </div>
-          </div>
+          </div> 
         </div>
       </div>
     </div>
