@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Button, Spinner } from '../components/ui';
-import { Code2, ArrowUpRight, Search, Filter } from 'lucide-react';
+import { Code2, ArrowUpRight, Search } from 'lucide-react';
 import { problemService } from '../services/problemService';
 import { Link } from 'react-router-dom';
 
@@ -90,9 +90,7 @@ export function ProblemsPage() {
                   {problem.difficulty || 'Medium'}
                 </span>
               </div>
-              <p className="problem-desc">
-                {problem.description || 'Interactive algorithm problem from CodeArena repository.'}
-              </p>
+              {problem.description && <p className="problem-desc line-clamp">{problem.description}</p>}
               <div className="card-footer-action">
                 <Link to={`/problems/${problem.slug}`}>
                   <Button variant="secondary" size="small">
