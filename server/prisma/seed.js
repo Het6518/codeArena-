@@ -65,7 +65,8 @@ The functions \`get\` and \`put\` must each run in **O(1)** average time complex
     explanation: 'Cache operations execute in O(1) using Doubly-Linked List + Hash Map.',
     timeLimitMs: 2500,
     memoryLimitMb: 512,
-    isPublished: true,
+    // Unpublished: its test case is not a stdin/stdout format a program can be judged against.
+    isPublished: false,
     testCases: [
       {
         input: 'LRUCache(2); put(1,1); put(2,2); get(1); put(3,3); get(2);',
