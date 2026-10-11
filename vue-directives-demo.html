@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue.js Custom Directives Demonstration</title>
+  <!-- Tailwind CSS CDN for modern styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 & Vue Router CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen p-6">
+  <div id="app" class="max-w-4xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden border border-slate-200">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6">
+      <h1 class="text-3xl font-bold">Vue.js Custom Directives Showcase</h1>
+      <p class="text-emerald-100 text-sm mt-1">
+        Demonstration of Custom Directives across HTML web pages &amp; Vue Router
+      </p>
+
+      <!-- Navigation Router Links -->
+      <nav class="flex gap-3 mt-5">
+        <router-link
+          to="/"
+          class="px-4 py-2 rounded-lg font-medium text-sm transition"
+          active-class="bg-white text-emerald-800 shadow"
+          exact-active-class="bg-white text-emerald-800 shadow"
+        >
+          I &amp; II: Uppercase &amp; Dynamic List
+        </router-link>
+        <router-link
+          to="/date-formatting"
+          class="px-4 py-2 rounded-lg font-medium text-sm transition"
+          active-class="bg-white text-emerald-800 shadow"
+        >
+          III: Date Formatting (New Route)
+        </router-link>
+      </nav>
+    </header>
+
+    <!-- Main Router Outlet -->
+    <main class="p-6">
+      <router-view></router-view>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-100 border-t border-slate-200 p-4 text-center text-xs text-slate-500">
+      Vue 3 + Vue Router 4 Custom Directive Demo
+    </footer>
+  </div>
+
+  <script>
+    const { createApp, ref } = Vue;
+    const { createRouter, createWebHashHistory } = VueRouter;
+
+    /* ============================================================
+       DIRECTIVE I: v-uppercase-click
+       Transforms text to uppercase when clicked.
+    ============================================================ */
+    const uppercaseClickDirective = {
+      mounted(el, binding) {
+        el.style.cursor = 'pointer';
+        el.title = 'Click to transform to UPPERCASE';
+
+        el._clickHandler = () => {
+          el.innerText = el.innerText.toUpperCase();
+          el.classList.add('text-emerald-700', 'font-bold');
+        };
+
+        el.addEventListener('click', el._clickHandler);
+      },
+      unmounted(el) {
+        el.removeEventListener('click', el._clickHandler);
+      }
+    };
+
+    /* ============================================================
+       DIRECTIVE II: v-dynamic-list
+       Renders an array dynamically into list items inside the element.
+    ============================================================ */
+    function renderDynamicList(el, binding) {
+      const items = binding.value || [];
+      el.innerHTML = ''; // Clear previous items
+
+      if (!Array.isArray(items) || items.length === 0) {
+        const emptyNotice = document.createElement('li');
+        emptyNotice.className = 'text-slate-400 italic py-1';
+        emptyNotice.textContent = 'No items in the list.';
+        el.appendChild(emptyNotice);
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className =
+          'p-3 mb-2 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-between text-slate-700 transition';
+
+        const textSpan = document.createElement('span');
+        textSpan.innerHTML = `<strong>#${index + 1}</strong>: ${
+          typeof item === 'object' ? JSON.stringify(item) : item
+        }`;
+
+        li.appendChild(textSpan);
+        el.appendChild(li);
+      });
+    }
+
+    const dynamicListDirective = {
+      mounted: renderDynamicList,
+      updated: renderDynamicList
+    };
+
+    /* ============================================================
+       DIRECTIVE III: v-date-format
+       Formats raw dates/timestamps into human-readable strings.
+       Supports modifiers:
+       - v-date-format.relative  -> "x minutes/hours ago"
+       - v-date-format.long      -> "Wednesday, October 7, 2026, 11:30 PM"
+       - v-date-format.short     -> "10/7/2026"
+       - Default                 -> "Oct 7, 2026, 11:30 PM"
+    ============================================================ */
+    function formatHumanDate(dateInput, modifiers = {}) {
+      if (!dateInput) return 'Invalid Date';
+      const date = new Date(dateInput);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+
+      // Relative format modifier
+      if (modifiers.relative) {
+        const diffMs = Date.now() - date.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHours = Math.floor(diffMin / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+        if (Math.abs(diffDays) > 0) return rtf.format(-diffDays, 'day');
+        if (Math.abs(diffHours) > 0) return rtf.format(-diffHours, 'hour');
+        if (Math.abs(diffMin) > 0) return rtf.format(-diffMin, 'minute');
+        return 'just now';
+      }
+
+      // Long format modifier
+      if (modifiers.long) {
+        return new Intl.DateTimeFormat('en-US', {
+          dateStyle: 'full',
+          timeStyle: 'medium'
+        }).format(date);
+      }
+
+      // Short format modifier
+      if (modifiers.short) {
+        return new Intl.DateTimeFormat('en-US', {
+          dateStyle: 'short'
+        }).format(date);
+      }
+
+      // Default human-readable format
+      return new Intl.DateTimeFormat('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      }).format(date);
+    }
+
+    const dateFormatDirective = {
+      mounted(el, binding) {
+        el.textContent = formatHumanDate(binding.value, binding.modifiers);
+      },
+      updated(el, binding) {
+        el.textContent = formatHumanDate(binding.value, binding.modifiers);
+      }
+    };
+
+    /* ============================================================
+       COMPONENT 1: HomeView (Directives I & II)
+    ============================================================ */
+    const HomeView = {
+      setup() {
+        const rawTexts = ref([
+          'Click me to turn this text into uppercase!',
+          'Vue custom directives provide direct low-level DOM access.',
+          'Try clicking this sentence as well.'
+        ]);
+
+        const sampleItems = ref([
+          'Vue 3 Composition API',
+          'Custom Directives Lifecycle Hooks',
+          'Dynamic List Element Creation',
+          'Vue Router 4 Setup'
+        ]);
+
+        const newItem = ref('');
+
+        const addItem = () => {
+          if (newItem.value.trim()) {
+            sampleItems.value.push(newItem.value.trim());
+            newItem.value = '';
+          }
+        };
+
+        const removeItem = () => {
+          sampleItems.value.pop();
+        };
+
+        return { rawTexts, sampleItems, newItem, addItem, removeItem };
+      },
+      template: `
+        <div class="space-y-8">
+          <!-- Section I -->
+          <section class="border border-slate-200 rounded-xl p-5 bg-slate-50">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-2">
+              <span class="bg-emerald-600 text-white rounded-full w-7 h-7 inline-flex items-center justify-center text-sm">I</span>
+              Directive: Uppercase on Click (<code class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-sm font-mono">v-uppercase-click</code>)
+            </h2>
+            <p class="text-slate-600 text-sm mb-4">
+              Click on any sentence below. The custom directive handles the DOM click event and transforms the text content to UPPERCASE.
+            </p>
+
+            <div class="space-y-2">
+              <div
+                v-for="(text, index) in rawTexts"
+                :key="index"
+                v-uppercase-click
+                class="p-3 bg-white border border-slate-300 rounded-lg shadow-sm hover:border-emerald-500 hover:bg-emerald-50/50 transition cursor-pointer select-none"
+              >
+                {{ text }}
+              </div>
+            </div>
+          </section>
+
+          <!-- Section II -->
+          <section class="border border-slate-200 rounded-xl p-5 bg-slate-50">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-2">
+              <span class="bg-emerald-600 text-white rounded-full w-7 h-7 inline-flex items-center justify-center text-sm">II</span>
+              Directive: Dynamic List Rendering (<code class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-sm font-mono">v-dynamic-list</code>)
+            </h2>
+            <p class="text-slate-600 text-sm mb-4">
+              The <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs">ul</code> element below has <strong>no child template tags</strong>. The directive dynamically creates and updates the <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-xs">&lt;li&gt;</code> nodes from the reactive array.
+            </p>
+
+            <div class="flex gap-2 mb-4">
+              <input
+                v-model="newItem"
+                @keyup.enter="addItem"
+                placeholder="Enter new item name..."
+                class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                @click="addItem"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition"
+              >
+                Add Item
+              </button>
+              <button
+                @click="removeItem"
+                class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium transition"
+              >
+                Remove Last
+              </button>
+            </div>
+
+            <!-- Custom directive mounts and updates children dynamically -->
+            <ul v-dynamic-list="sampleItems" class="mt-2"></ul>
+          </section>
+        </div>
+      `
+    };
+
+    /* ============================================================
+       COMPONENT 2: DateFormatView (Directive III on New Route)
+    ============================================================ */
+    const DateFormatView = {
+      setup() {
+        const currentDate = ref(new Date());
+        const pastDate = ref(new Date(Date.now() - 1000 * 60 * 45)); // 45 minutes ago
+        const futureDate = ref(new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)); // 7 days later
+        const customDateInput = ref('2026-12-25T18:30');
+
+        return {
+          currentDate,
+          pastDate,
+          futureDate,
+          customDateInput
+        };
+      },
+      template: `
+        <div class="space-y-6">
+          <section class="border border-slate-200 rounded-xl p-5 bg-slate-50">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2 mb-2">
+              <span class="bg-emerald-600 text-white rounded-full w-7 h-7 inline-flex items-center justify-center text-sm">III</span>
+              Directive: Human-Readable Date Formatting (<code class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-sm font-mono">v-date-format</code>)
+            </h2>
+            <p class="text-slate-600 text-sm mb-4">
+              This route (<code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-xs text-emerald-800">/date-formatting</code>) displays raw date values automatically formatted into human-friendly strings using modifiers.
+            </p>
+
+            <div class="space-y-4">
+              <!-- Default Format -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Default Medium Format</span>
+                <div class="text-slate-500 text-xs font-mono mb-1">Raw: {{ currentDate.toISOString() }}</div>
+                <div class="text-lg font-semibold text-slate-800">
+                  Formatted: <span v-date-format="currentDate" class="text-emerald-600"></span>
+                </div>
+              </div>
+
+              <!-- Full / Long Format -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Long / Full Format (v-date-format.long)</span>
+                <div class="text-slate-500 text-xs font-mono mb-1">Raw: {{ currentDate }}</div>
+                <div class="text-lg font-semibold text-slate-800">
+                  Formatted: <span v-date-format.long="currentDate" class="text-indigo-600"></span>
+                </div>
+              </div>
+
+              <!-- Relative Time Format -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Relative Time Format (v-date-format.relative)</span>
+                <div class="text-slate-500 text-xs font-mono mb-1">Past date (45 mins ago): {{ pastDate }}</div>
+                <div class="text-lg font-semibold text-slate-800">
+                  Formatted: <span v-date-format.relative="pastDate" class="text-amber-600"></span>
+                </div>
+              </div>
+
+              <!-- Interactive Date Picker Input -->
+              <div class="bg-white p-4 rounded-lg border border-slate-200">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Interactive Date Binding</span>
+                <div class="mt-2 flex flex-wrap gap-4 items-center">
+                  <input
+                    type="datetime-local"
+                    v-model="customDateInput"
+                    class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <div class="text-base font-semibold text-slate-800">
+                    Live Formatted: <span v-date-format="customDateInput" class="text-emerald-600 underline"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      `
+    };
+
+    /* ============================================================
+       ROUTER SETUP
+    ============================================================ */
+    const routes = [
+      { path: '/', component: HomeView },
+      { path: '/date-formatting', component: DateFormatView }
+    ];
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes
+    });
+
+    /* ============================================================
+       APP REGISTRATION & DIRECTIVES
+    ============================================================ */
+    const app = createApp({});
+
+    // Register Directives globally
+    app.directive('uppercase-click', uppercaseClickDirective);
+    app.directive('dynamic-list', dynamicListDirective);
+    app.directive('date-format', dateFormatDirective);
+
+    // Mount Router and App
+    app.use(router);
+    app.mount('#app');
+  </script>
+</body>
+</html>

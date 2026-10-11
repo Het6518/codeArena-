@@ -1,4 +1,5 @@
-const { loginUser, registerUser } = require('../services/authService');
+// Switched from Prisma (authService) to native PostgreSQL + UDF (authServicePg)
+const { loginUser, registerUser } = require('../services/authServicePg');
 
 const register = async (req, res) => {
   try {

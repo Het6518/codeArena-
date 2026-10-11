@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "demo:pg": "node src/scripts/postgresDemo.js"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
