@@ -1,0 +1,936 @@
+<title>CodeArena Flow Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one wide call-order canvas (left to right) beside a detail panel; flows sit above as chips. */
+:root {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --card: #ffffff;
+  --border: #d0d7de;
+  --border-subtle: #e4e8ec;
+  --fg: #24292f;
+  --muted: #656d76;
+  --accent: #3b82f6;
+  --accent-subtle: rgba(59, 130, 246, 0.10);
+  --edge: #c9d1d9;
+  --edge-strong: #3b82f6;
+
+  --k-entry: #2563eb;
+  --k-transport: #0891b2;
+  --k-route: #0d9488;
+  --k-socket: #7c3aed;
+  --k-middleware: #64748b;
+  --k-controller: #d97706;
+  --k-service: #c2410c;
+  --k-engine: #db2777;
+  --k-model: #16a34a;
+  --k-infra: #dc2626;
+
+  --font-body: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0d10; --surface: #14171d; --card: #161a22; --border: #262c36; --border-subtle: #1e232d;
+    --fg: #f0f6fc; --muted: #8b949e; --accent: #3b82f6; --accent-subtle: rgba(59, 130, 246, 0.16);
+    --edge: #2b323d; --edge-strong: #60a5fa;
+    --k-entry: #60a5fa; --k-transport: #22d3ee; --k-route: #2dd4bf; --k-socket: #a78bfa; --k-middleware: #94a3b8;
+    --k-controller: #fbbf24; --k-service: #fb923c; --k-engine: #f472b6; --k-model: #4ade80; --k-infra: #f87171;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d10; --surface: #14171d; --card: #161a22; --border: #262c36; --border-subtle: #1e232d;
+  --fg: #f0f6fc; --muted: #8b949e; --accent: #3b82f6; --accent-subtle: rgba(59, 130, 246, 0.16);
+  --edge: #2b323d; --edge-strong: #60a5fa;
+  --k-entry: #60a5fa; --k-transport: #22d3ee; --k-route: #2dd4bf; --k-socket: #a78bfa; --k-middleware: #94a3b8;
+  --k-controller: #fbbf24; --k-service: #fb923c; --k-engine: #f472b6; --k-model: #4ade80; --k-infra: #f87171;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.page { padding-inline: 20px; padding-block: 20px 32px; display: flex; flex-direction: column; gap: 16px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+header.top h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+header.top h1 span { color: var(--accent); }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 68ch; }
+.stats { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.search { position: relative; flex: 1 1 260px; max-width: 360px; }
+.search input {
+  width: 100%; padding: 8px 12px 8px 32px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+  font: inherit;
+}
+.search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+button.btn {
+  font: inherit; font-weight: 500; padding: 7px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer;
+}
+button.btn:hover { background: var(--surface); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.flows { display: flex; flex-wrap: wrap; gap: 6px; }
+.flows-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; align-self: center; }
+.chip {
+  font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--card); color: var(--fg);
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--dot); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.canvas-wrap {
+  overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  max-height: calc(100vh - 230px); min-height: 420px;
+}
+.canvas { position: relative; }
+.canvas svg.edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.col-head {
+  position: absolute; top: 12px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); text-align: center;
+}
+
+.node {
+  position: absolute; display: flex; align-items: center; gap: 8px;
+  padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--card); color: var(--fg); font: inherit; font-size: 12.5px; font-weight: 500;
+  text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.node .label { overflow: hidden; text-overflow: ellipsis; }
+.node.mono .label { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; }
+.node:hover { border-color: var(--accent); }
+.node.dim { opacity: 0.28; }
+.node.hit { border-color: var(--edge-strong); }
+.node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-subtle), 0 0 0 1px var(--accent); }
+.node .step {
+  flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: #ffffff;
+  font-family: var(--font-mono); font-size: 10.5px; display: grid; place-items: center; font-variant-numeric: tabular-nums;
+}
+.node.pulse { animation: pulse 0.9s ease 2; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--accent-subtle); } }
+
+path.edge { fill: none; stroke: var(--edge); stroke-width: 1.2; transition: opacity 0.15s ease; }
+path.edge.back { stroke-dasharray: 4 4; }
+path.edge.hidden-back { display: none; }
+path.edge.dim { opacity: 0.15; }
+path.edge.hit { stroke: var(--edge-strong); stroke-width: 2; opacity: 1; display: inline; }
+
+aside.panel {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+  padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  position: sticky; top: env(safe-area-inset-top, 0px); max-height: calc(100vh - 40px); overflow: auto;
+}
+.panel h2 { margin: 0; font-size: 17px; font-weight: 650; text-wrap: balance; }
+.panel .kind { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.panel .file { font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+.panel p { margin: 0; }
+.panel .desc { color: var(--fg); }
+.panel h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.link-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.link-list button {
+  font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border-subtle); background: var(--surface); color: var(--fg);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.link-list button:hover { border-color: var(--accent); }
+.muted { color: var(--muted); }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: step; }
+ol.steps li button {
+  width: 100%; text-align: left; font: inherit; background: none; border: 1px solid transparent; color: var(--fg);
+  padding: 8px; border-radius: 6px; cursor: pointer; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px;
+}
+ol.steps li button:hover { background: var(--surface); border-color: var(--border-subtle); }
+ol.steps .n { font-family: var(--font-mono); font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; padding-top: 2px; }
+ol.steps .t { font-weight: 600; font-size: 13px; display: block; }
+ol.steps .d { color: var(--muted); font-size: 12.5px; display: block; }
+
+.intro-list { margin: 0; padding-left: 18px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .node, path.edge { transition: none; }
+  .node.pulse { animation: none; }
+}
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>Code<span>Arena</span> Flow Map</h1>
+      <p>Every page, route, socket event, middleware, service, judge component, Prisma model and external service, laid out in call order. Click a node to see what it calls and what calls it, or pick a flow to trace a full request step by step.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="toolbar">
+    <label class="search" for="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input id="search" type="search" placeholder="Jump to submissionService, join-room, BattleRoom..." autocomplete="off" aria-label="Search nodes">
+    </label>
+    <button class="btn" id="clear" type="button">Clear selection</button>
+  </div>
+
+  <div class="flows" id="flows"><span class="flows-label">Flows</span></div>
+  <div class="legend" id="legend"></div>
+
+  <div class="layout">
+    <div class="canvas-wrap" id="wrap">
+      <div class="canvas" id="canvas">
+        <svg class="edges" id="edges" aria-hidden="true"></svg>
+      </div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+
+<script>
+const COLUMNS = [
+  { key: 'entry', title: 'Entry points', kind: 'Page or script', color: '--k-entry' },
+  { key: 'transport', title: 'Client transport', kind: 'Client transport', color: '--k-transport' },
+  { key: 'route', title: 'HTTP routes', kind: 'HTTP route', color: '--k-route', mono: true },
+  { key: 'socket', title: 'Socket events', kind: 'Socket event', color: '--k-socket', mono: true },
+  { key: 'middleware', title: 'Middleware', kind: 'Middleware', color: '--k-middleware' },
+  { key: 'controller', title: 'Controllers', kind: 'Controller / handler', color: '--k-controller' },
+  { key: 'service', title: 'Services', kind: 'Service', color: '--k-service' },
+  { key: 'engine', title: 'Judge & battle logic', kind: 'Domain logic', color: '--k-engine' },
+  { key: 'model', title: 'Prisma models', kind: 'Model (PostgreSQL)', color: '--k-model' },
+  { key: 'infra', title: 'Infra & external', kind: 'Infra / external', color: '--k-infra' },
+];
+
+// [id, column, label, file, description]
+const NODE_ROWS = [
+  ['router', 'entry', 'AppRouter + ProtectedRoute', 'client/src/router/AppRouter.jsx', 'Defines every page route. Routes under the app shell are wrapped in ProtectedRoute, which waits for useAuthStore.initializeAuth() and redirects to /login without a valid token. Unknown paths redirect to /dashboard.'],
+  ['pg_auth', 'entry', 'Login / Register pages', 'client/src/features/auth/pages/', 'Forms validated with react-hook-form + zod. Register posts to /auth/register; login posts to /auth/login and hands the returned JWT and user to useAuthStore.login().'],
+  ['st_auth', 'entry', 'useAuthStore', 'client/src/store/useAuthStore.js', 'Zustand store holding the token (localStorage key codearena_token) and the user. initializeAuth() calls GET /users/me on load, refreshUser() re-fetches rating and W/L/D after a battle, logout() clears the token and disconnects the socket.'],
+  ['pg_dash', 'entry', 'DashboardPage', 'client/src/pages/DashboardPage.jsx', 'Shows rating, W/L/D, number of published problems, a recommended problem and the five most recent finished battles with rating change.'],
+  ['pg_problems', 'entry', 'ProblemsPage', 'client/src/pages/ProblemsPage.jsx', 'Lists published problems from GET /problems with a client-side title filter. Each card links to /problems/:slug.'],
+  ['pg_ws', 'entry', 'ProblemWorkspacePage', 'client/src/pages/ProblemWorkspacePage.jsx', 'Statement, constraints and public samples on the left; Monaco editor, language picker, Run and Submit on the right. Run calls POST /submissions/run and shows each sample case; Submit calls POST /submissions and shows verdict, tests passed, time and memory. The Submissions tab lists your history for this problem.'],
+  ['pg_lobby', 'entry', 'BattlesPage (lobby)', 'client/src/pages/BattlesPage.jsx', 'Create a room or join one by its 6-character code, then toggle ready. Remembers the open lobby in sessionStorage so a refresh rejoins it. Navigates to the arena when the room goes IN_PROGRESS.'],
+  ['pg_arena', 'entry', 'BattleRoomArenaPage', 'client/src/pages/BattleRoomArenaPage.jsx', 'Rejoins the room on mount and on every reconnect. Stopwatch counts up from the server startedAt, corrected by the server clock offset. Submits with roomCode attached, shows opponent status from battle-activity and player-presence, and opens the result dialog on battle-end. Leaving mid-battle is a forfeit.'],
+  ['pg_lb', 'entry', 'LeaderboardPage', 'client/src/pages/LeaderboardPage.jsx', 'Paginated ranking table (rank, rating, wins, losses, draws, win rate) plus your own rank card. Players appear after their first finished battle.'],
+  ['sc_import', 'entry', 'npm run import:problems', 'server/prisma/importProblems.js', 'CLI that imports judgeable Codeforces problems from DeepMind CodeContests. Reads only the light Parquet columns over HTTP range requests, filters candidates, then fetches statements and tests per problem and inserts them. Safe to re-run; existing slugs are skipped.'],
+  ['sc_seed', 'entry', 'seed / make-admin scripts', 'server/prisma/seed.js, makeAdmin.js', 'seed.js inserts the hand-written starter problems. makeAdmin.js promotes a user to ADMIN by email, which unlocks the problem and test-case write routes.'],
+
+  ['api', 'transport', 'api.js (axios)', 'client/src/services/api.js', 'Axios instance for VITE_API_BASE_URL. A request interceptor adds Authorization: Bearer <token>; a response interceptor turns error bodies into readable messages. Used by authService, problemService, submissionService and userService.'],
+  ['sock', 'transport', 'socket.js (Socket.IO client)', 'client/src/services/socket.js', 'Single shared Socket.IO client. The auth callback reads the current token on every (re)connect. emitWithAck() wraps emits in a 10 s acknowledgement timeout and rejects on success: false.'],
+
+  ['r_register', 'route', 'POST /auth/register', 'server/src/routes/authRoutes.js', 'Creates an account. Rate limited to 20 attempts per 15 minutes per IP.'],
+  ['r_login', 'route', 'POST /auth/login', 'server/src/routes/authRoutes.js', 'Returns a 30-day JWT and the user profile. Rate limited with the auth limiter.'],
+  ['r_me', 'route', 'GET /users/me', 'server/src/routes/userRoutes.js', 'Current user profile: role, rating, wins, losses, draws.'],
+  ['r_lb', 'route', 'GET /users/leaderboard', 'server/src/routes/userRoutes.js', 'Ranked players with competition ranking (equal ratings share a rank), plus the caller\'s own entry. Query: page, limit (max 100).'],
+  ['r_mybattles', 'route', 'GET /users/me/battles', 'server/src/routes/userRoutes.js', 'Finished battles for the caller: result, opponent, problem, solve time, rating change.'],
+  ['r_problems', 'route', 'GET /problems', 'server/src/routes/problemRoutes.js', 'Public list of published problems only.'],
+  ['r_problem', 'route', 'GET /problems/:slug', 'server/src/routes/problemRoutes.js', 'One published problem with its public sample tests. Hidden tests are never selected.'],
+  ['r_probsubs', 'route', 'GET /problems/:id/submissions', 'server/src/routes/problemRoutes.js', 'The caller\'s own submissions for one problem (latest 50).'],
+  ['r_admin', 'route', 'Problem & test-case writes', 'POST/PUT/DELETE /problems, /testcases', 'Create, update and delete problems and test cases. Admin only, because test cases include hidden inputs and expected outputs.'],
+  ['r_run', 'route', 'POST /submissions/run', 'server/src/routes/submissionRoutes.js', 'Runs code against public samples only and returns per-case input, expected, actual and stderr. Nothing is stored. 10 executions per minute per user.'],
+  ['r_submit', 'route', 'POST /submissions', 'server/src/routes/submissionRoutes.js', 'Judges code against all tests (public and hidden) and stores the result. With roomCode it counts as a battle submission. 10 executions per minute per user.'],
+  ['r_subs', 'route', 'GET /submissions/me · /:id', 'server/src/routes/submissionRoutes.js', 'Paginated own history and single-submission detail. Another user\'s submission id returns 404.'],
+
+  ['e_conn', 'socket', 'connection', 'server/src/socket/index.js', 'Handshake. socketAuth verifies the JWT before the connection is accepted; the user id is stored on socket.data so one socket can only act as one user.'],
+  ['e_create', 'socket', 'create-room', 'server/src/room/roomSocketHandlers.js', 'Creates a WAITING room with a crypto-random 6-character code; the creator becomes host. Leaves any other lobby first.'],
+  ['e_join', 'socket', 'join-room', 'server/src/room/roomSocketHandlers.js', 'Joins by code. Existing members may always rejoin (refresh, reconnect, opening the arena). New players only while WAITING and while fewer than 2 players.'],
+  ['e_ready', 'socket', 'player-ready / -unready', 'server/src/room/roomSocketHandlers.js', 'Toggles readiness. When both players are ready the room starts exactly once, with a random published problem that has tests.'],
+  ['e_leave', 'socket', 'leave-room', 'server/src/room/roomSocketHandlers.js', 'In a lobby: removes the player, promotes the other to host or deletes the empty room. During a battle: forfeit, opponent wins.'],
+  ['e_disc', 'socket', 'disconnect', 'server/src/room/roomSocketHandlers.js', 'Emits player-presence with no database work. In a lobby the player is removed after a 15 s grace period unless they reconnect. During a battle the player is never removed.'],
+  ['e_out', 'socket', 'server → client events', 'room-update, battle-start, battle-end, battle-activity, player-presence', 'Broadcasts to everyone in the room: room-update (full room state), battle-start (problem chosen), battle-end (winner, solve times, rating changes), battle-activity (opponent verdicts), player-presence (online / offline).'],
+
+  ['m_app', 'middleware', 'app.js guards', 'server/src/app.js', 'CORS restricted to CLIENT_URL, 100 kb JSON body limit, nosniff / frame-deny / no-referrer headers, x-powered-by disabled.'],
+  ['m_auth', 'middleware', 'authMiddleware', 'server/src/middleware/authMiddleware.js', 'Requires Authorization: Bearer <JWT>, verifies it with JWT_SECRET and sets req.user.id. Missing, forged or expired tokens get 401.'],
+  ['m_admin', 'middleware', 'requireAdmin', 'server/src/middleware/requireAdmin.js', 'Reads the user\'s role from the database on every request (so a demotion takes effect immediately) and returns 403 for non-admins.'],
+  ['m_rate', 'middleware', 'rateLimit', 'server/src/middleware/rateLimit.js', 'In-memory fixed-window limiter. Auth: 20 per 15 min per IP. Execution: 10 per minute per user. Responds 429 with Retry-After.'],
+  ['m_sauth', 'middleware', 'socketAuth', 'server/src/socket/socketAuth.js', 'Verifies the JWT sent in the Socket.IO handshake (auth.token or Bearer header) and rejects the connection otherwise.'],
+  ['m_err', 'middleware', 'errorHandler', 'server/src/middleware/errorHandler.js', 'Last in the chain: JSON 404 for unknown routes, 400 for invalid JSON, 413 for oversized bodies, 503 when the database is unreachable, generic 500 otherwise. Internal details are logged, never sent.'],
+
+  ['c_auth', 'controller', 'authController', 'server/src/controllers/authController.js', 'register, login and me. Translates service errors to HTTP status codes.'],
+  ['c_user', 'controller', 'userController', 'server/src/controllers/userController.js', 'Leaderboard and the caller\'s battle history.'],
+  ['c_problem', 'controller', 'problemController', 'server/src/controllers/problemController.js', 'List, get by slug, create, update, delete.'],
+  ['c_tc', 'controller', 'testCaseController', 'server/src/controllers/testCaseController.js', 'Test-case CRUD for admins.'],
+  ['c_sub', 'controller', 'submissionController', 'server/src/controllers/submissionController.js', 'Create (judge and store), run (samples only), get one, list own. Failures include submissionId when one was stored.'],
+  ['h_room', 'controller', 'roomSocketHandlers', 'server/src/room/roomSocketHandlers.js', 'Handles every room event, keeps each socket subscribed to one room channel, computes online presence from connected sockets, and only sends user-facing error messages to clients.'],
+
+  ['s_auth', 'service', 'authService', 'server/src/services/authService.js', 'Validates input, hashes passwords with bcrypt (10 rounds), signs JWTs with the user id, and loads profiles.'],
+  ['s_user', 'service', 'userService', 'server/src/services/userService.js', 'Leaderboard: users with at least one finished battle, ordered by rating, wins, then join date. Rank is 1 + number of ranked players with a higher rating.'],
+  ['s_problem', 'service', 'problemService', 'server/src/services/problemService.js', 'Validation, slug creation, published-only reads, and public sample tests for the workspace.'],
+  ['s_tc', 'service', 'testCaseService', 'server/src/services/testCaseService.js', 'Test-case validation and CRUD. A problem holds at most 6 test cases.'],
+  ['s_sub', 'service', 'submissionService', 'server/src/services/submissionService.js', 'Validates input (max 64 KB source, supported language), allows one evaluation per user at a time, stores the submission as PENDING, judges it, then saves verdict, tests passed, time, memory and error text. Provider failures become INTERNAL_ERROR, never Wrong Answer.'],
+  ['s_room', 'service', 'RoomService', 'server/src/room/roomService.js', 'Room codes, create, join (with a capacity re-check after insert), ready, leave and host promotion. Starts a battle with a conditional update on status = WAITING so it can only happen once.'],
+  ['s_battle', 'service', 'BattleService', 'server/src/battle/battleService.js', 'Checks battle submissions (member, IN_PROGRESS, matching problem), decides the result after each evaluated submission, handles forfeits, and finishes the battle in one transaction guarded by status = IN_PROGRESS so ratings are applied exactly once.'],
+
+  ['j_exec', 'engine', 'executionService', 'server/src/execution/executionService.js', 'Runs tests one by one and stops at the first failure. Normalizes line endings and trailing whitespace before comparing, enforces the problem time limit, and withholds output from hidden tests in error messages.'],
+  ['j_provider', 'engine', 'onlineCompilerProvider', 'server/src/execution/providers/', 'Adapter for onlinecompiler.io: maps languages to compilers (javascript runs on Deno), sends code and stdin, and classifies results as success, compilation error, runtime error or time limit. Timeouts, 429 and 5xx responses are thrown as infrastructure errors.'],
+  ['b_winner', 'engine', 'winner.js', 'server/src/battle/winner.js', 'Winner rule: the first ACCEPTED submission received by the server wins, not the first evaluation to finish. Waits while the opponent has an earlier PENDING submission (ignored after 5 minutes). Same-millisecond accepts are a draw.'],
+  ['b_rating', 'engine', 'rating.js (Elo)', 'server/src/battle/rating.js', 'Standard Elo with K = 32 and a floor of 100. Win = 1, draw = 0.5, loss = 0; equal ratings move by 16.'],
+  ['i_lib', 'engine', 'codeContests.js', 'server/prisma/lib/codeContests.js', 'Import rules: Codeforces only, rating 800 to 2400, no interactive or special-checker problems, single-token outputs only, input under 20 KB, output under 900 characters. Splits statements into legend, input and output sections and adds the CC BY 4.0 attribution.'],
+
+  ['User', 'model', 'User', 'server/prisma/schema.prisma', 'username, email, bcrypt password, role (USER / ADMIN), rating (default 1200), wins, losses, draws.'],
+  ['Problem', 'model', 'Problem', 'server/prisma/schema.prisma', 'title, slug, statement, difficulty (EASY / MEDIUM / HARD), constraints, sample, explanation, time and memory limits, isPublished.'],
+  ['TestCase', 'model', 'TestCase', 'server/prisma/schema.prisma', 'input, expectedOutput, isHidden. Cascade-deleted with the problem.'],
+  ['Submission', 'model', 'Submission', 'server/prisma/schema.prisma', 'userId, problemId, optional battleRoomId, language, source, status, tests passed / total, execution time, memory, error message. createdAt is the authoritative received time for battles.'],
+  ['BattleRoom', 'model', 'BattleRoom', 'server/prisma/schema.prisma', 'roomCode, status (WAITING / IN_PROGRESS / FINISHED), host, selected problem, startedAt, finishedAt, winnerId, endReason (SOLVED / DRAW / FORFEIT).'],
+  ['BattleRoomPlayer', 'model', 'BattleRoomPlayer', 'server/prisma/schema.prisma', 'Membership row per player: ready, isHost, solvedAt, solveTimeMs, ratingBefore, ratingAfter. Unique per room and user.'],
+
+  ['prisma', 'infra', 'Prisma client', 'server/src/config/prisma.js', 'One shared client. Retries a query once when the connection was dropped (P1001, P1002, P1017) but never on pool timeouts. Pool: 10 connections, 30 s pool timeout, 15 s connect timeout.'],
+  ['neon', 'infra', 'Neon PostgreSQL', 'DATABASE_URL', 'Hosted Postgres reached through the Neon pooler. Migrations live in server/prisma/migrations.'],
+  ['ioreg', 'infra', 'socket/io.js registry', 'server/src/socket/io.js', 'Holds the Socket.IO server so HTTP-side code (a battle submission finishing) can emit to a room.'],
+  ['oc', 'infra', 'onlinecompiler.io', 'POST /api/run-code-sync/', 'External sandbox that compiles and runs code. Free tier: 1M requests per month, at most 4 concurrent sync runs, stdout truncated at 999 characters.'],
+  ['hf', 'infra', 'CodeContests dataset', 'huggingface.co/datasets/deepmind/code_contests', 'DeepMind\'s competitive programming dataset (CC BY 4.0), read as Parquet with HTTP range requests.'],
+];
+
+// Static call graph: [from, to]
+const EDGES = [
+  ['router', 'st_auth'], ['pg_auth', 'st_auth'], ['pg_auth', 'api'], ['st_auth', 'api'], ['st_auth', 'sock'],
+  ['pg_dash', 'api'], ['pg_problems', 'api'], ['pg_ws', 'api'], ['pg_lb', 'api'], ['pg_arena', 'api'],
+  ['pg_lobby', 'sock'], ['pg_arena', 'sock'],
+  ['api', 'r_register'], ['api', 'r_login'], ['api', 'r_me'], ['api', 'r_lb'], ['api', 'r_mybattles'], ['api', 'r_problems'],
+  ['api', 'r_problem'], ['api', 'r_probsubs'], ['api', 'r_run'], ['api', 'r_submit'], ['api', 'r_subs'], ['api', 'r_admin'],
+  ['sock', 'e_conn'], ['sock', 'e_create'], ['sock', 'e_join'], ['sock', 'e_ready'], ['sock', 'e_leave'], ['sock', 'e_disc'],
+  ['r_register', 'm_rate'], ['r_register', 'c_auth'], ['r_login', 'm_rate'], ['r_login', 'c_auth'],
+  ['r_me', 'm_auth'], ['r_me', 'c_auth'], ['r_lb', 'm_auth'], ['r_lb', 'c_user'], ['r_mybattles', 'm_auth'], ['r_mybattles', 'c_user'],
+  ['r_problems', 'c_problem'], ['r_problem', 'c_problem'], ['r_probsubs', 'm_auth'], ['r_probsubs', 'c_sub'],
+  ['r_admin', 'm_auth'], ['r_admin', 'm_admin'], ['r_admin', 'c_problem'], ['r_admin', 'c_tc'],
+  ['r_run', 'm_auth'], ['r_run', 'm_rate'], ['r_run', 'c_sub'], ['r_submit', 'm_auth'], ['r_submit', 'm_rate'], ['r_submit', 'c_sub'],
+  ['r_subs', 'm_auth'], ['r_subs', 'c_sub'],
+  ['e_conn', 'm_sauth'], ['e_create', 'h_room'], ['e_join', 'h_room'], ['e_ready', 'h_room'], ['e_leave', 'h_room'], ['e_disc', 'h_room'],
+  ['m_admin', 'User'],
+  ['c_auth', 's_auth'], ['c_user', 's_user'], ['c_user', 's_battle'], ['c_problem', 's_problem'], ['c_tc', 's_tc'], ['c_sub', 's_sub'],
+  ['h_room', 's_room'], ['h_room', 's_battle'], ['h_room', 'e_out'],
+  ['s_auth', 'User'], ['s_user', 'User'], ['s_problem', 'Problem'], ['s_problem', 'TestCase'], ['s_tc', 'TestCase'], ['s_tc', 'Problem'],
+  ['s_sub', 'j_exec'], ['s_sub', 's_battle'], ['s_sub', 'Submission'], ['s_sub', 'Problem'], ['s_sub', 'TestCase'],
+  ['s_room', 'BattleRoom'], ['s_room', 'BattleRoomPlayer'], ['s_room', 'Problem'],
+  ['s_battle', 's_room'], ['s_battle', 'b_winner'], ['s_battle', 'b_rating'], ['s_battle', 'BattleRoom'], ['s_battle', 'BattleRoomPlayer'],
+  ['s_battle', 'User'], ['s_battle', 'Submission'], ['s_battle', 'ioreg'],
+  ['j_exec', 'j_provider'], ['j_provider', 'oc'],
+  ['sc_import', 'hf'], ['sc_import', 'i_lib'], ['sc_import', 'Problem'], ['sc_import', 'TestCase'], ['sc_seed', 'Problem'], ['sc_seed', 'User'],
+  ['User', 'prisma'], ['Problem', 'prisma'], ['TestCase', 'prisma'], ['Submission', 'prisma'], ['BattleRoom', 'prisma'], ['BattleRoomPlayer', 'prisma'],
+  ['prisma', 'neon'], ['ioreg', 'e_out'], ['e_out', 'pg_lobby'], ['e_out', 'pg_arena'],
+];
+
+// Ordered request paths: [node id, what happens at this step]
+const FLOWS = [
+  {
+    id: 'signin', title: 'Sign in',
+    summary: 'Email and password become a JWT that every later HTTP request and the socket handshake carry.',
+    steps: [
+      ['pg_auth', 'The login form validates email and password on the client.'],
+      ['api', 'authService.login posts the credentials. No token is attached yet.'],
+      ['r_login', 'POST /api/auth/login.'],
+      ['m_rate', 'Auth limiter allows 20 attempts per 15 minutes per IP.'],
+      ['c_auth', 'login handler calls the service and maps errors to 400 / 401.'],
+      ['s_auth', 'Looks up the user by lowercase email and compares the bcrypt hash.'],
+      ['User', 'Reads the user row, including role and rating.'],
+      ['prisma', 'Query goes through the shared client.'],
+      ['neon', 'Postgres answers.'],
+      ['st_auth', 'The 30-day JWT is stored in localStorage and the user in the store. On later page loads initializeAuth() calls GET /users/me.'],
+    ],
+  },
+  {
+    id: 'problem', title: 'Open a problem',
+    summary: 'The list and the workspace only ever see published problems and public samples.',
+    steps: [
+      ['pg_problems', 'Loads the problem list on mount.'],
+      ['api', 'GET request, token attached.'],
+      ['r_problems', 'GET /api/problems needs no login.'],
+      ['c_problem', 'Returns the list.'],
+      ['s_problem', 'Selects published problems only, newest first.'],
+      ['Problem', 'Problem rows.'],
+      ['pg_ws', 'Clicking a card opens /problems/:slug.'],
+      ['r_problem', 'GET /api/problems/:slug.'],
+      ['TestCase', 'Only isHidden = false tests are selected and returned as sampleTestCases.'],
+    ],
+  },
+  {
+    id: 'run', title: 'Run code',
+    summary: 'Executes against public samples only and shows each case. Nothing is stored.',
+    steps: [
+      ['pg_ws', 'Run is enabled when the problem has public samples.'],
+      ['api', 'POST with problemId, language and sourceCode.'],
+      ['r_run', 'POST /api/submissions/run.'],
+      ['m_auth', 'JWT verified; req.user.id set.'],
+      ['m_rate', 'Execution limiter: 10 per minute per user.'],
+      ['c_sub', 'runCode handler.'],
+      ['s_sub', 'Validates input and takes the per-user evaluation lock.'],
+      ['TestCase', 'Loads the public sample tests.'],
+      ['j_exec', 'Runs every sample and records input, expected, actual and stderr. Stops early only on a compilation error.'],
+      ['j_provider', 'Maps the language to a compiler and calls the provider.'],
+      ['oc', 'Code runs in the external sandbox.'],
+    ],
+  },
+  {
+    id: 'submit', title: 'Submit a solution',
+    summary: 'Judged against every test, hidden ones included. The verdict and metrics are stored.',
+    steps: [
+      ['pg_ws', 'Submit is disabled while a run or submission is in flight.'],
+      ['api', 'POST with problemId, language and sourceCode.'],
+      ['r_submit', 'POST /api/submissions.'],
+      ['m_auth', 'JWT verified.'],
+      ['m_rate', 'Execution limiter.'],
+      ['c_sub', 'createSubmission handler.'],
+      ['s_sub', 'Validates, takes the evaluation lock, loads the problem with up to 6 tests.'],
+      ['Submission', 'Row created as PENDING.'],
+      ['j_exec', 'Runs tests in order and stops at the first failing one. Hidden-test failures report only the test number.'],
+      ['j_provider', 'One provider call per test.'],
+      ['oc', 'Sandboxed execution.'],
+      ['pg_ws', 'Shows the verdict, tests passed, time and memory. A provider outage shows as "Execution Unavailable", not Wrong Answer.'],
+    ],
+  },
+  {
+    id: 'room', title: 'Create & join a room',
+    summary: 'Rooms live in Postgres and every change is broadcast to both players.',
+    steps: [
+      ['pg_lobby', 'Create Room or Join with a code.'],
+      ['sock', 'Connects with the JWT in the handshake.'],
+      ['e_conn', 'Connection event.'],
+      ['m_sauth', 'JWT verified before the socket is accepted.'],
+      ['e_create', 'create-room (or join-room with the code).'],
+      ['h_room', 'Switches the socket to the room channel.'],
+      ['s_room', 'Leaves any other lobby, creates the room or adds the player, re-checks the 2-player cap.'],
+      ['BattleRoom', 'Room row with status WAITING.'],
+      ['BattleRoomPlayer', 'One row per player; the creator is host.'],
+      ['e_out', 'room-update to both players, with online flags.'],
+    ],
+  },
+  {
+    id: 'start', title: 'Ready up & start',
+    summary: 'The battle starts once, even if both players click ready at the same moment.',
+    steps: [
+      ['pg_lobby', 'I Am Ready.'],
+      ['sock', 'emitWithAck waits for the acknowledgement.'],
+      ['e_ready', 'player-ready.'],
+      ['h_room', 'Calls setReady.'],
+      ['s_room', 'Marks the player ready. If both are ready, picks a random published problem that has tests.'],
+      ['Problem', 'Random pick.'],
+      ['BattleRoom', 'updateMany where status = WAITING sets IN_PROGRESS, the problem and startedAt. Only one request can win this update.'],
+      ['e_out', 'battle-start and room-update.'],
+      ['pg_arena', 'The lobby navigates to /battles/:code; the stopwatch runs from the server startedAt.'],
+    ],
+  },
+  {
+    id: 'battle', title: 'Battle submission → result',
+    summary: 'The server decides the winner from received times, then applies Elo once and notifies both players.',
+    steps: [
+      ['pg_arena', 'Submit sends the code with the roomCode.'],
+      ['api', 'POST with roomCode.'],
+      ['r_submit', 'POST /api/submissions.'],
+      ['m_auth', 'JWT verified.'],
+      ['c_sub', 'createSubmission handler.'],
+      ['s_sub', 'Validates and takes the evaluation lock.'],
+      ['s_battle', 'validateBattleSubmission: player is a member, room is IN_PROGRESS, problem matches.'],
+      ['Submission', 'Stored as PENDING with battleRoomId. createdAt is the received time used for ranking.'],
+      ['j_exec', 'Judged against every test.'],
+      ['j_provider', 'Provider calls.'],
+      ['oc', 'Sandboxed execution.'],
+      ['b_winner', 'Earliest received ACCEPTED wins, unless the opponent has an earlier PENDING submission. Same millisecond is a draw.'],
+      ['b_rating', 'Elo, K = 32.'],
+      ['BattleRoom', 'One transaction: status IN_PROGRESS to FINISHED (compare-and-set), winner, endReason.'],
+      ['BattleRoomPlayer', 'Solve time and rating before / after.'],
+      ['User', 'Rating and W/L/D updated.'],
+      ['ioreg', 'Gets the Socket.IO server from HTTP-side code.'],
+      ['e_out', 'battle-activity after each verdict; battle-end and room-update when finished.'],
+      ['pg_arena', 'Result dialog with solve times and rating changes; the profile is refreshed.'],
+    ],
+  },
+  {
+    id: 'forfeit', title: 'Forfeit',
+    summary: 'Leaving an in-progress battle ends it in the opponent\'s favour.',
+    steps: [
+      ['pg_arena', 'Forfeit, confirmed in a dialog.'],
+      ['sock', 'emitWithAck.'],
+      ['e_leave', 'leave-room.'],
+      ['h_room', 'Sees the player is in an IN_PROGRESS room.'],
+      ['s_room', 'Keeps the player row for the result history.'],
+      ['s_battle', 'forfeitBattle: the opponent is the winner, endReason FORFEIT.'],
+      ['b_rating', 'Elo as a normal loss.'],
+      ['User', 'Ratings and W/L/D updated.'],
+      ['ioreg', 'Emits to the room.'],
+      ['e_out', 'battle-end to the remaining player.'],
+    ],
+  },
+  {
+    id: 'leaderboard', title: 'Leaderboard',
+    summary: 'Ratings come straight from the User rows that battles update.',
+    steps: [
+      ['pg_lb', 'Requests a page of 25.'],
+      ['api', 'GET with token.'],
+      ['r_lb', 'GET /api/users/leaderboard.'],
+      ['m_auth', 'JWT verified.'],
+      ['c_user', 'getLeaderboardHandler.'],
+      ['s_user', 'Players with at least one battle, ordered by rating, wins, join date. Ranks are computed per distinct rating.'],
+      ['User', 'Rating and W/L/D columns.'],
+    ],
+  },
+  {
+    id: 'import', title: 'Import problems',
+    summary: 'Bulk-loads judgeable Codeforces problems without downloading the dataset\'s bundled solutions.',
+    steps: [
+      ['sc_import', 'npm run import:problems -- --easy 40 --medium 40 --hard 20.'],
+      ['hf', 'Reads light columns from 7 Parquet files, then statements and tests per candidate.'],
+      ['i_lib', 'Filters out checker, interactive, image and float problems; picks 2 public and up to 4 hidden tests.'],
+      ['Problem', 'Inserted with attribution; existing slugs are skipped.'],
+      ['TestCase', 'Up to 6 per problem.'],
+      ['prisma', 'Writes through the client.'],
+      ['neon', 'Stored.'],
+    ],
+  },
+];
+
+const NODE_W = 188;
+const NODE_H = 32;
+const COL_GAP = 52;
+const ROW_H = 44;
+const TOP = 44;
+const LEFT = 20;
+
+const colIndex = Object.fromEntries(COLUMNS.map((column, index) => [column.key, index]));
+const nodes = new Map();
+const rowCounts = {};
+
+for (const [id, col, label, file, desc] of NODE_ROWS) {
+  const row = rowCounts[col] || 0;
+  rowCounts[col] = row + 1;
+  nodes.set(id, {
+    id, col, label, file, desc,
+    x: LEFT + colIndex[col] * (NODE_W + COL_GAP),
+    y: TOP + row * ROW_H,
+    out: [], in: [],
+  });
+}
+
+for (const [from, to] of EDGES) {
+  nodes.get(from).out.push(to);
+  nodes.get(to).in.push(from);
+}
+
+const flowsByNode = new Map();
+for (const flow of FLOWS) {
+  for (const [id] of flow.steps) {
+    if (!flowsByNode.has(id)) flowsByNode.set(id, new Set());
+    flowsByNode.get(id).add(flow.id);
+  }
+}
+
+const canvas = document.getElementById('canvas');
+const svg = document.getElementById('edges');
+const panel = document.getElementById('panel');
+const wrap = document.getElementById('wrap');
+const searchInput = document.getElementById('search');
+
+const width = LEFT * 2 + COLUMNS.length * NODE_W + (COLUMNS.length - 1) * COL_GAP;
+const height = TOP + Math.max(...Object.values(rowCounts)) * ROW_H + 24;
+canvas.style.width = `${width}px`;
+canvas.style.height = `${height}px`;
+svg.setAttribute('width', width);
+svg.setAttribute('height', height);
+svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+document.getElementById('stats').textContent =
+  `${nodes.size} nodes · ${EDGES.length} connections · ${FLOWS.length} flows`;
+
+// Column headings
+COLUMNS.forEach((column, index) => {
+  const head = document.createElement('div');
+  head.className = 'col-head';
+  head.style.left = `${LEFT + index * (NODE_W + COL_GAP)}px`;
+  head.style.width = `${NODE_W}px`;
+  head.textContent = column.title;
+  canvas.appendChild(head);
+});
+
+// Legend
+const legend = document.getElementById('legend');
+for (const column of COLUMNS) {
+  const item = document.createElement('span');
+  item.innerHTML = `<i class="dot" style="--dot: var(${column.color})"></i>${column.title}`;
+  legend.appendChild(item);
+}
+
+// Nodes
+const nodeEls = new Map();
+for (const node of nodes.values()) {
+  const column = COLUMNS[colIndex[node.col]];
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = `node${column.mono ? ' mono' : ''}`;
+  el.style.left = `${node.x}px`;
+  el.style.top = `${node.y}px`;
+  el.style.width = `${NODE_W}px`;
+  el.style.height = `${NODE_H}px`;
+  el.title = `${node.label} — ${node.file}`;
+  el.dataset.id = node.id;
+  el.innerHTML = `<i class="dot" style="--dot: var(${column.color})"></i><span class="label"></span>`;
+  el.querySelector('.label').textContent = node.label;
+  el.addEventListener('click', () => selectNode(node.id, { scroll: false }));
+  canvas.appendChild(el);
+  nodeEls.set(node.id, el);
+}
+
+// Edge geometry. Forward edges run right-to-left-side; same-column edges loop out on the
+// right; backward edges (responses flowing back toward the client) are dashed and only
+// drawn while they are part of the current selection.
+const edgePath = (fromId, toId) => {
+  const a = nodes.get(fromId);
+  const b = nodes.get(toId);
+  const ay = a.y + NODE_H / 2;
+  const by = b.y + NODE_H / 2;
+
+  if (colIndex[a.col] === colIndex[b.col]) {
+    const x = a.x + NODE_W;
+    const bulge = 26 + Math.min(40, Math.abs(by - ay) / 6);
+    return { d: `M ${x} ${ay} C ${x + bulge} ${ay}, ${x + bulge} ${by}, ${x} ${by}`, back: false };
+  }
+
+  if (colIndex[b.col] > colIndex[a.col]) {
+    const x1 = a.x + NODE_W;
+    const x2 = b.x;
+    const dx = Math.max(28, (x2 - x1) / 2);
+    return { d: `M ${x1} ${ay} C ${x1 + dx} ${ay}, ${x2 - dx} ${by}, ${x2} ${by}`, back: false };
+  }
+
+  const x1 = a.x;
+  const x2 = b.x + NODE_W;
+  const dx = Math.max(40, (x1 - x2) / 3);
+  return { d: `M ${x1} ${ay} C ${x1 - dx} ${ay - 40}, ${x2 + dx} ${by - 40}, ${x2} ${by}`, back: true };
+};
+
+const edgeEls = new Map();
+const addEdgeEl = (fromId, toId, extraClass = '') => {
+  const key = `${fromId}>${toId}`;
+  if (edgeEls.has(key)) return edgeEls.get(key);
+  const { d, back } = edgePath(fromId, toId);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('class', `edge${back ? ' back hidden-back' : ''} ${extraClass}`.trim());
+  svg.appendChild(path);
+  edgeEls.set(key, path);
+  return path;
+};
+
+for (const [from, to] of EDGES) addEdgeEl(from, to);
+// Flow steps can connect nodes with no static edge (e.g. a page re-appearing at the end).
+for (const flow of FLOWS) {
+  for (let i = 0; i < flow.steps.length - 1; i += 1) {
+    const from = flow.steps[i][0];
+    const to = flow.steps[i + 1][0];
+    if (from !== to && !edgeEls.has(`${from}>${to}`)) {
+      addEdgeEl(from, to, 'flow-only').style.display = 'none';
+    }
+  }
+}
+
+// Flow chips
+const flowsBar = document.getElementById('flows');
+const chipEls = new Map();
+for (const flow of FLOWS) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'chip';
+  chip.textContent = flow.title;
+  chip.setAttribute('aria-pressed', 'false');
+  chip.addEventListener('click', () => (state.flow === flow.id ? clearSelection() : selectFlow(flow.id)));
+  flowsBar.appendChild(chip);
+  chipEls.set(flow.id, chip);
+}
+
+const state = { node: null, flow: null, query: '' };
+
+const resetVisuals = () => {
+  for (const el of nodeEls.values()) {
+    el.classList.remove('dim', 'hit', 'selected', 'pulse');
+    el.querySelector('.step')?.remove();
+  }
+  for (const [key, path] of edgeEls) {
+    path.classList.remove('dim', 'hit');
+    if (path.classList.contains('flow-only')) path.style.display = 'none';
+  }
+  for (const chip of chipEls.values()) chip.setAttribute('aria-pressed', 'false');
+};
+
+const applyHighlight = (nodeIds, edgeKeys) => {
+  for (const [id, el] of nodeEls) {
+    el.classList.toggle('dim', !nodeIds.has(id));
+    el.classList.toggle('hit', nodeIds.has(id));
+  }
+  for (const [key, path] of edgeEls) {
+    const on = edgeKeys.has(key);
+    path.classList.toggle('hit', on);
+    path.classList.toggle('dim', !on);
+    if (path.classList.contains('flow-only')) path.style.display = on ? '' : 'none';
+  }
+};
+
+const scrollToNode = (id) => {
+  const node = nodes.get(id);
+  wrap.scrollTo({
+    left: Math.max(0, node.x - wrap.clientWidth / 2 + NODE_W / 2),
+    top: Math.max(0, node.y - wrap.clientHeight / 2),
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  });
+  const el = nodeEls.get(id);
+  el.classList.remove('pulse');
+  void el.offsetWidth;
+  el.classList.add('pulse');
+};
+
+const kindOf = (node) => COLUMNS[colIndex[node.col]];
+
+const linkButton = (id) => {
+  const node = nodes.get(id);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.innerHTML = `<i class="dot" style="--dot: var(${kindOf(node).color})"></i>`;
+  button.append(node.label);
+  button.addEventListener('click', () => selectNode(id, { scroll: true }));
+  return button;
+};
+
+const section = (title, content) => {
+  const wrapEl = document.createElement('div');
+  const heading = document.createElement('h3');
+  heading.textContent = title;
+  wrapEl.append(heading, content);
+  return wrapEl;
+};
+
+const linkList = (ids, emptyText) => {
+  const list = document.createElement('div');
+  list.className = 'link-list';
+  if (!ids.length) {
+    const none = document.createElement('span');
+    none.className = 'muted';
+    none.textContent = emptyText;
+    list.appendChild(none);
+  }
+  ids.forEach((id) => list.appendChild(linkButton(id)));
+  return list;
+};
+
+function selectNode(id, { scroll }) {
+  resetVisuals();
+  state.node = id;
+  state.flow = null;
+  const node = nodes.get(id);
+
+  const ids = new Set([id, ...node.out, ...node.in]);
+  const keys = new Set([...node.out.map((to) => `${id}>${to}`), ...node.in.map((from) => `${from}>${id}`)]);
+  applyHighlight(ids, keys);
+  nodeEls.get(id).classList.add('selected');
+  if (scroll) scrollToNode(id);
+
+  const column = kindOf(node);
+  panel.replaceChildren();
+
+  const kind = document.createElement('span');
+  kind.className = 'kind';
+  kind.innerHTML = `<i class="dot" style="--dot: var(${column.color})"></i>`;
+  kind.append(column.kind);
+
+  const title = document.createElement('h2');
+  title.textContent = node.label;
+  const file = document.createElement('p');
+  file.className = 'file';
+  file.textContent = node.file;
+  const desc = document.createElement('p');
+  desc.className = 'desc';
+  desc.textContent = node.desc;
+
+  const head = document.createElement('div');
+  head.style.display = 'flex';
+  head.style.flexDirection = 'column';
+  head.style.gap = '4px';
+  head.append(kind, title, file);
+
+  panel.append(head, desc,
+    section('Calls / leads to', linkList(node.out, 'Nothing downstream.')),
+    section('Called by', linkList(node.in, 'Nothing upstream.')));
+
+  const flowIds = [...(flowsByNode.get(id) || [])];
+  if (flowIds.length) {
+    const list = document.createElement('div');
+    list.className = 'flows';
+    for (const flowId of flowIds) {
+      const flow = FLOWS.find((f) => f.id === flowId);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = flow.title;
+      chip.addEventListener('click', () => selectFlow(flow.id));
+      list.appendChild(chip);
+    }
+    panel.append(section('Part of these flows', list));
+  }
+}
+
+function selectFlow(flowId) {
+  resetVisuals();
+  state.flow = flowId;
+  state.node = null;
+  const flow = FLOWS.find((f) => f.id === flowId);
+  chipEls.get(flowId).setAttribute('aria-pressed', 'true');
+
+  const ids = new Set(flow.steps.map(([id]) => id));
+  const keys = new Set();
+  for (let i = 0; i < flow.steps.length - 1; i += 1) {
+    if (flow.steps[i][0] !== flow.steps[i + 1][0]) keys.add(`${flow.steps[i][0]}>${flow.steps[i + 1][0]}`);
+  }
+  applyHighlight(ids, keys);
+
+  // Number each node by the first step it appears in.
+  const numbered = new Set();
+  flow.steps.forEach(([id], index) => {
+    if (numbered.has(id)) return;
+    numbered.add(id);
+    const badge = document.createElement('span');
+    badge.className = 'step';
+    badge.textContent = index + 1;
+    nodeEls.get(id).prepend(badge);
+  });
+
+  panel.replaceChildren();
+  const kind = document.createElement('span');
+  kind.className = 'kind';
+  kind.textContent = `Flow · ${flow.steps.length} steps`;
+  const title = document.createElement('h2');
+  title.textContent = flow.title;
+  const summary = document.createElement('p');
+  summary.className = 'muted';
+  summary.textContent = flow.summary;
+
+  const list = document.createElement('ol');
+  list.className = 'steps';
+  flow.steps.forEach(([id, note], index) => {
+    const node = nodes.get(id);
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    const n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = String(index + 1).padStart(2, '0');
+    const body = document.createElement('span');
+    const t = document.createElement('span');
+    t.className = 't';
+    t.textContent = node.label;
+    const d = document.createElement('span');
+    d.className = 'd';
+    d.textContent = note;
+    body.append(t, d);
+    button.append(n, body);
+    button.addEventListener('click', () => scrollToNode(id));
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+
+  panel.append(kind, title, summary, list);
+  scrollToNode(flow.steps[0][0]);
+}
+
+function renderIntro() {
+  panel.replaceChildren();
+  const title = document.createElement('h2');
+  title.textContent = 'How to read this map';
+  const list = document.createElement('ul');
+  list.className = 'intro-list';
+  for (const text of [
+    'Columns run left to right in call order: the browser on the left, the database and external services on the right.',
+    'Click any node to highlight what it calls and what calls it. The panel shows its file and what it does.',
+    'Pick a flow above to trace one request end to end with numbered steps. Dashed lines are responses flowing back to the client.',
+    'Search jumps to a node by name, file or description. Press Enter to select the first match and Esc to clear.',
+  ]) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    list.appendChild(li);
+  }
+  const tryIt = document.createElement('div');
+  tryIt.className = 'flows';
+  for (const flowId of ['battle', 'submit', 'start']) {
+    const flow = FLOWS.find((f) => f.id === flowId);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = flow.title;
+    chip.addEventListener('click', () => selectFlow(flowId));
+    tryIt.appendChild(chip);
+  }
+  panel.append(title, list, section('Good places to start', tryIt));
+}
+
+function clearSelection() {
+  state.node = null;
+  state.flow = null;
+  resetVisuals();
+  applySearch();
+  renderIntro();
+}
+
+const matchesQuery = (node, query) =>
+  `${node.label} ${node.file} ${node.desc}`.toLowerCase().includes(query);
+
+function applySearch() {
+  const query = state.query;
+  if (!query || state.node || state.flow) return;
+  for (const [id, el] of nodeEls) {
+    el.classList.toggle('dim', !matchesQuery(nodes.get(id), query));
+  }
+  for (const path of edgeEls.values()) path.classList.add('dim');
+}
+
+searchInput.addEventListener('input', () => {
+  state.query = searchInput.value.trim().toLowerCase();
+  if (state.node || state.flow) {
+    state.node = null;
+    state.flow = null;
+    resetVisuals();
+    renderIntro();
+  }
+  if (!state.query) {
+    resetVisuals();
+    return;
+  }
+  applySearch();
+});
+
+searchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    const match = [...nodes.values()].find((node) => node.label.toLowerCase().includes(state.query))
+      || [...nodes.values()].find((node) => matchesQuery(node, state.query));
+    if (match) selectNode(match.id, { scroll: true });
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    searchInput.value = '';
+    state.query = '';
+    clearSelection();
+  }
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+  searchInput.value = '';
+  state.query = '';
+  clearSelection();
+});
+
+renderIntro();
+</script>

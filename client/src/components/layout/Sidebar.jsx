@@ -7,7 +7,6 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  Terminal,
   Zap,
 } from 'lucide-react';
 

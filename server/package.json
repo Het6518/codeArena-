@@ -1,35 +1,39 @@
 {
-    "name":  "server",
-    "version":  "1.0.0",
-    "description":  "",
-    "main":  "index.js",
-    "scripts":  {
-                    "dev":  "nodemon src/server.js",
-                    "start":  "node src/server.js",
-                    "seed":  "node prisma/seed.js",
-                    "seed:execution":  "node prisma/seedExecutionProblem.js"
-                },
-    "prisma":  {
-                   "seed":  "node prisma/seed.js"
-               },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "type":  "commonjs",
-    "dependencies":  {
-                         "@prisma/client":  "^6.19.3",
-                         "bcrypt":  "^6.0.0",
-                         "cors":  "^2.8.6",
-                         "dotenv":  "^17.4.2",
-                         "express":  "^5.2.1",
-                         "jsonwebtoken":  "^9.0.3",
-                         "socket.io":  "^4.8.1",
-                         "socket.io-client":  "^4.8.1"
-                     },
-    "devDependencies":  {
-                            "nodemon":  "^3.1.14",
-                            "prisma":  "^6.19.3"
-                        }
+    "name": "server",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "dev": "nodemon src/server.js",
+        "start": "node src/server.js",
+        "test": "node --test",
+        "seed": "node prisma/seed.js",
+        "seed:execution": "node prisma/seedExecutionProblem.js",
+        "make-admin": "node prisma/makeAdmin.js",
+        "import:problems": "node prisma/importProblems.js",
+        "migrate:deploy": "prisma migrate deploy"
+    },
+    "prisma": {
+        "seed": "node prisma/seed.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "@prisma/client": "^6.19.3",
+        "bcrypt": "^6.0.0",
+        "cors": "^2.8.6",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "jsonwebtoken": "^9.0.3",
+        "socket.io": "^4.8.1",
+        "socket.io-client": "^4.8.1"
+    },
+    "devDependencies": {
+        "hyparquet": "^1.31.3",
+        "hyparquet-compressors": "^1.1.2",
+        "nodemon": "^3.1.14",
+        "prisma": "^6.19.3"
+    }
 }

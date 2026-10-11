@@ -1,6 +1,5 @@
-import { Search, Menu, X, Command, Activity } from 'lucide-react';
+import { Search, Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Logo } from '../common/Logo';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { UserMenu } from './UserMenu';
 
