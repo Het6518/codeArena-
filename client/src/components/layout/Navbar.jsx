@@ -1,42 +1,58 @@
-import { Search, Menu, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink } from 'react-router-dom';
+import { Code2, LayoutDashboard, Menu, Swords, Trophy, X } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { UserMenu } from './UserMenu';
 
-export function Navbar({ onToggleMobileSidebar, isMobileSidebarOpen }) {
+const NAV_ITEMS = [
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/problems', label: 'Problems', icon: Code2 },
+  { path: '/battles', label: 'Battles', icon: Swords },
+  { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+];
+
+export function Navbar() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
+
   return (
     <header className="app-navbar">
       <div className="navbar-left">
         <button
           type="button"
           className="mobile-menu-btn"
-          onClick={onToggleMobileSidebar}
-          aria-label={isMobileSidebarOpen ? 'Close navigation sidebar' : 'Open navigation sidebar'}
+          onClick={() => setIsMobileMenuOpen((open) => !open)}
+          aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-nav"
         >
-          {isMobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        <Link to="/dashboard" className="navbar-logo-link" aria-label="CodeArena Home">
-          {/* <Logo compact /> */}
+        <Link to="/dashboard" className="navbar-logo-link" aria-label="CodeArena dashboard">
           <span className="brand-title">
             Code<span className="brand-highlight">Arena</span>
           </span>
         </Link>
 
-        {/* <div className="navbar-ping-badge" title="System Latency">
-          <Activity size={12} className="pulse-icon" />
-          <span>EU-West: 38ms</span>
-        </div> */}
-      </div>
-
-      <div className="navbar-center">
-        <button type="button" className="navbar-search-btn" onClick={() => {}}>
-          <Search size={15} />
-          <span className="search-placeholder">Search problems, arenas, users...</span>
-          {/* <kbd className="search-kbd">
-            <Command size={11} /> K
-          </kbd> */}
-        </button>
+        <nav className="topnav" aria-label="Main navigation">
+          {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+            <NavLink key={path} to={path} className={({ isActive }) => `topnav-link${isActive ? ' active' : ''}`}>
+              <Icon size={16} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
       </div>
 
       <div className="navbar-right">
@@ -44,6 +60,25 @@ export function Navbar({ onToggleMobileSidebar, isMobileSidebarOpen }) {
         <div className="navbar-vr" />
         <UserMenu />
       </div>
+
+      {isMobileMenuOpen && (
+        <>
+          <div className="mobile-nav-backdrop" onClick={() => setIsMobileMenuOpen(false)} aria-hidden="true" />
+          <nav id="mobile-nav" className="mobile-nav animate-fade-in" aria-label="Main navigation">
+            {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => `mobile-nav-link${isActive ? ' active' : ''}`}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      )}
     </header>
   );
 }
