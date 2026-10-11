@@ -60,7 +60,7 @@ export function AppLayout() {
 
   // Connect socket connection on shell load
   useEffect(() => {
-    const socket = connectSocket();
+    connectSocket();
     return () => {
       disconnectSocket();
     };

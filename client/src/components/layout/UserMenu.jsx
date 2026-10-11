@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Settings, LogOut, ChevronDown, ShieldCheck } from 'lucide-react';
+import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export function UserMenu() {
@@ -12,7 +12,7 @@ export function UserMenu() {
   const logout = useAuthStore((state) => state.logout);
 
   const username = user?.username || user?.name || 'Developer';
-  const email = user?.email || 'dev@codearena.io';
+  const email = user?.email || '';
   const initials = username.substring(0, 2).toUpperCase();
 
   const handleLogout = () => {

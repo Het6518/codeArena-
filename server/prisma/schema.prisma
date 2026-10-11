@@ -17,6 +17,7 @@ model User {
   username          String             @unique
   email             String             @unique
   password          String
+  role              UserRole           @default(USER)
 
   avatar            String?
   bio               String?
@@ -28,6 +29,7 @@ model User {
 
   submissions       Submission[]
   hostedBattleRooms BattleRoom[]       @relation("BattleRoomHost")
+  wonBattleRooms    BattleRoom[]       @relation("BattleRoomWinner")
   battleRoomPlayers BattleRoomPlayer[]
 
   createdAt         DateTime           @default(now())
@@ -79,8 +81,16 @@ model Submission {
   sourceCode String           @db.Text
   status     SubmissionStatus @default(PENDING)
 
+  passedTestCases Int?
+  totalTestCases  Int?
+  executionTimeMs Int?
+  memoryKb        Int?
+  errorMessage    String?     @db.Text
+  battleRoomId    String?
+
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   problem    Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  battleRoom BattleRoom?      @relation(fields: [battleRoomId], references: [id], onDelete: SetNull)
 
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
@@ -88,6 +98,7 @@ model Submission {
   @@index([userId])
   @@index([problemId])
   @@index([userId, problemId])
+  @@index([battleRoomId])
 }
 
 model BattleRoom {
@@ -97,16 +108,22 @@ model BattleRoom {
   hostId            String
   selectedProblemId String?
   startedAt         DateTime?
+  finishedAt        DateTime?
+  winnerId          String?
+  endReason         BattleEndReason?
 
   host              User               @relation("BattleRoomHost", fields: [hostId], references: [id], onDelete: Cascade)
   selectedProblem   Problem?           @relation(fields: [selectedProblemId], references: [id], onDelete: SetNull)
+  winner            User?              @relation("BattleRoomWinner", fields: [winnerId], references: [id], onDelete: SetNull)
   players           BattleRoomPlayer[]
+  submissions       Submission[]
 
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
   @@index([hostId])
   @@index([selectedProblemId])
+  @@index([winnerId])
 }
 
 model BattleRoomPlayer {
@@ -116,6 +133,11 @@ model BattleRoomPlayer {
   isHost    Boolean    @default(false)
   ready     Boolean    @default(false)
   joinedAt  DateTime   @default(now())
+
+  solvedAt     DateTime?
+  solveTimeMs  Int?
+  ratingBefore Int?
+  ratingAfter  Int?
 
   room      BattleRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -141,10 +163,23 @@ enum SubmissionStatus {
   TIME_LIMIT_EXCEEDED
   RUNTIME_ERROR
   COMPILATION_ERROR
+  INTERNAL_ERROR
 }
 
 enum RoomStatus {
   WAITING
   READY
   IN_PROGRESS
+  FINISHED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum BattleEndReason {
+  SOLVED
+  DRAW
+  FORFEIT
 }
