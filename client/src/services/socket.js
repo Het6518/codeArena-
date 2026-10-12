@@ -29,7 +29,29 @@ export const connectSocket = () => {
 };
 
 export const disconnectSocket = () => {
-  if (socket?.connected) {
+  if (socket) {
     socket.disconnect();
   }
+};
+
+// Emits an event and resolves with the server acknowledgement. Rejects on failure
+// responses or when the server does not answer in time.
+export const emitWithAck = (eventName, payload, timeoutMs = 10000) => {
+  const activeSocket = connectSocket();
+
+  return new Promise((resolve, reject) => {
+    activeSocket.timeout(timeoutMs).emit(eventName, payload, (error, response) => {
+      if (error) {
+        reject(new Error('Server did not respond. Check your connection and try again.'));
+        return;
+      }
+
+      if (!response?.success) {
+        reject(new Error(response?.message || 'Request failed'));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
 };

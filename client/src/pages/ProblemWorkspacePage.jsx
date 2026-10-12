@@ -4,7 +4,6 @@ import {
   Play,
   Send,
   RotateCcw,
-  CheckCircle2,
   XCircle,
   Clock,
   Code2,
@@ -14,49 +13,17 @@ import {
 } from 'lucide-react';
 import { Button, Card, Spinner } from '../components/ui';
 import { CodeEditor } from '../components/editor/CodeEditor';
+import { SplitPane } from '../components/layout/SplitPane';
 import { problemService } from '../services/problemService';
 import { submissionService } from '../services/submissionService';
+import { DEFAULT_BOILERPLATES, LANGUAGE_OPTIONS } from '../constants/languages';
+import { VerdictBadge } from '../components/common/VerdictBadge';
 import toast from 'react-hot-toast';
-
-const DEFAULT_BOILERPLATES = {
-  javascript: `const fs = require('fs');
-const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/).map(Number);
-
-const a = input[0];
-const b = input[1];
-
-console.log(a + b);`,
-  python: `import sys
-
-numbers = list(map(int, sys.stdin.read().strip().split()))
-a, b = numbers[0], numbers[1]
-
-print(a + b)`,
-  cpp: `#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    long long a, b;
-    cin >> a >> b;
-    cout << a + b << '\n';
-    return 0;
-}`,
-  java: `import java.util.*;
-
-class Main {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        long a = sc.nextLong();
-        long b = sc.nextLong();
-        System.out.println(a + b);
-    }
-}`,
-};
 
 const getSubmissionMessage = (status) => {
   switch (status) {
     case 'ACCEPTED':
-      return 'All database test cases passed.';
+      return 'All test cases passed.';
     case 'WRONG_ANSWER':
       return 'Your output did not match the expected output for at least one test case.';
     case 'COMPILATION_ERROR':
@@ -65,9 +32,18 @@ const getSubmissionMessage = (status) => {
       return 'The program crashed while running a test case.';
     case 'TIME_LIMIT_EXCEEDED':
       return 'The program took too long to finish.';
+    case 'INTERNAL_ERROR':
+      return 'The code execution service failed. This is not a verdict on your code; please try again.';
     default:
       return 'Submission was recorded.';
   }
+};
+
+const formatMetrics = ({ executionTimeMs, memoryKb }) => {
+  const parts = [];
+  if (executionTimeMs !== null && executionTimeMs !== undefined) parts.push(`${executionTimeMs} ms`);
+  if (memoryKb !== null && memoryKb !== undefined) parts.push(`${(memoryKb / 1024).toFixed(1)} MB`);
+  return parts.join(' · ');
 };
 export function ProblemWorkspacePage() {
   const { slug } = useParams();
@@ -79,11 +55,8 @@ export function ProblemWorkspacePage() {
   const [activeTab, setActiveTab] = useState('description'); // 'description' | 'submissions'
   const [language, setLanguage] = useState('javascript');
   const [code, setCode] = useState(DEFAULT_BOILERPLATES.javascript);
-  const [editorHeight, setEditorHeight] = useState(70);
-  const [isDragging, setIsDragging] = useState(false);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-  //const [dragging , isDragging ] = useState(false ) ;
   const [testTab, setTestTab] = useState('testcase'); // 'testcase' | 'result'
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,7 +94,7 @@ export function ProblemWorkspacePage() {
       setLoadingSubmissions(true);
       const data = await submissionService.getProblemSubmissions(problem.id);
       setSubmissions(data.submissions || []);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load past submissions');
     } finally {
       setLoadingSubmissions(false);
@@ -135,27 +108,31 @@ export function ProblemWorkspacePage() {
     }
   };
 
-  const handleRunCode = () => {
+  const handleRunCode = async () => {
+    if (!problem?.id || isRunning || isSubmitting) return;
     setIsRunning(true);
     setTestTab('result');
+    setExecutionResult(null);
 
-    setTimeout(() => {
-      setIsRunning(false);
-      setExecutionResult({
-        status: 'ACCEPTED',
-        runtime: '38 ms',
-        memory: '42.1 MB',
-        passedCount: '2/2 Sample Testcases Passed',
-        output: problem?.sampleOutput || 'Sample Output Passed',
+    try {
+      const response = await submissionService.runCode({
+        problemId: problem.id,
+        language,
+        sourceCode: code,
       });
-      toast.success('Sample test cases passed!');
-    }, 800);
+      setExecutionResult({ kind: 'run', ...response.result });
+    } catch (err) {
+      setExecutionResult({ kind: 'error', message: err.message || 'Could not run your code' });
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const handleSubmitCode = async () => {
-    if (!problem?.id) return;
+    if (!problem?.id || isRunning || isSubmitting) return;
     setIsSubmitting(true);
     setTestTab('result');
+    setExecutionResult(null);
 
     try {
       const response = await submissionService.createSubmission({
@@ -163,23 +140,20 @@ export function ProblemWorkspacePage() {
         language,
         sourceCode: code,
       });
+      const submission = response.submission;
 
-      setIsSubmitting(false);
-      setExecutionResult({
-        status: response.submission?.status || 'PENDING',
-        runtime: '45 ms',
-        memory: '41.8 MB',
-        passedCount: response.submission?.status === 'ACCEPTED' ? 'All Test Cases Passed' : 'Some Test Cases Failed',
-        output: getSubmissionMessage(response.submission?.status),
-      });
-      toast.success('Submission evaluation complete!');
+      setExecutionResult({ kind: 'submit', ...submission });
+      if (submission.status === 'ACCEPTED') {
+        toast.success('Accepted');
+      }
+      if (activeTab === 'submissions') {
+        fetchSubmissions();
+      }
     } catch (err) {
+      // Provider or network failure: report it as such, never as a wrong answer.
+      setExecutionResult({ kind: 'error', message: err.message || 'Submission could not be evaluated' });
+    } finally {
       setIsSubmitting(false);
-      setExecutionResult({
-        status: 'WRONG_ANSWER',
-        error: err.message || 'Submission failed evaluation',
-      });
-      toast.error(err.message || 'Submission failed');
     }
   };
 
@@ -207,41 +181,18 @@ export function ProblemWorkspacePage() {
       </div>
     );
   }
-const handleResizeStart = (e) => {
-  e.preventDefault();
-  setIsDragging(true);
-
-  const startY = e.clientY;
-  const startHeight = editorHeight;
-
-  const handleMouseMove = (moveEvent) => {
-    const rightPanel = document.querySelector('.right-panel');
-
-    if (!rightPanel) return;
-
-    const rect = rightPanel.getBoundingClientRect();
-    const delta = moveEvent.clientY - startY;
-
-    const deltaPercent = (delta / rect.height) * 100;
-    const newHeight = startHeight + deltaPercent;
-
-    setEditorHeight(Math.min(90, Math.max(20, newHeight)));
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-};
   return (
     <div className="leetcode-workspace animate-fade-in">
-      {/* Workspace Split Layout */}
-      <div className="workspace-grid">
+      {/* Problem | editor, resizable like LeetCode. Sizes are remembered per browser. */}
+      <SplitPane
+        direction="horizontal"
+        className="workspace-split"
+        defaultSize={45}
+        min={25}
+        max={70}
+        storageKey="codearena_split_problem"
+        label="Resize problem and editor panels"
+      >
         {/* LEFT PANE: Problem Statement & Submissions */}
         <div className="left-panel">
           <div className="panel-tab-bar">
@@ -313,11 +264,16 @@ const handleResizeStart = (e) => {
                     {submissions.map((sub) => (
                       <li key={sub.id} className="submission-item">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-                          <span style={{ fontWeight: 600 }}>{sub.status}</span>
+                          <VerdictBadge status={sub.status} compact />
+                          {sub.totalTestCases ? (
+                            <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                              {sub.passedTestCases}/{sub.totalTestCases}
+                            </span>
+                          ) : null}
                         </div>
                         <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                          {sub.language.toUpperCase()} • {new Date(sub.createdAt).toLocaleDateString()}
+                          {sub.language.toUpperCase()} · {sub.battleRoomId ? 'Battle · ' : ''}
+                          {new Date(sub.createdAt).toLocaleString()}
                         </span>
                       </li>
                     ))}
@@ -338,10 +294,11 @@ const handleResizeStart = (e) => {
                 value={language}
                 onChange={(e) => handleLanguageChange(e.target.value)}
               >
-                <option value="javascript">JavaScript (ES6)</option>
-                <option value="python">Python 3</option>
-                <option value="cpp">C++ 17</option>
-                <option value="java">Java 17</option>
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -355,6 +312,14 @@ const handleResizeStart = (e) => {
               <span>Reset</span>
             </button>
           </div>
+          <SplitPane
+            direction="vertical"
+            defaultSize={62}
+            min={20}
+            max={85}
+            storageKey="codearena_split_editor"
+            label="Resize editor and console"
+          >
           <div className="editor-workspace-container">
             <CodeEditor
               value={code}
@@ -363,7 +328,6 @@ const handleResizeStart = (e) => {
             />
           </div>
 
-         
           <div className="console-panel">
             <div className="console-tab-bar">
               <button
@@ -385,8 +349,19 @@ const handleResizeStart = (e) => {
             <div className="console-body">
               {testTab === 'testcase' ? (
                 <div className="testcase-inputs">
-                  <label className="input-label">Sample Input:</label>
-                  <pre className="input-preview">{problem.sampleInput}</pre>
+                  {problem.sampleTestCases?.length ? (
+                    problem.sampleTestCases.map((sample, index) => (
+                      <div key={sample.id}>
+                        <label className="input-label">Sample {index + 1} input (stdin):</label>
+                        <pre className="input-preview">{sample.input}</pre>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <label className="input-label">Sample Input:</label>
+                      <pre className="input-preview">{problem.sampleInput}</pre>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="test-result-view">
@@ -395,25 +370,68 @@ const handleResizeStart = (e) => {
                       <Spinner size="small" />
                       <span>{isSubmitting ? 'Evaluating Submission...' : 'Running Test Cases...'}</span>
                     </div>
-                  ) : executionResult ? (
+                  ) : executionResult?.kind === 'error' ? (
                     <div className="verdict-card">
                       <div className="verdict-status-row">
-                        {executionResult.status === 'ACCEPTED' ? (
-                          <div className="verdict-badge accepted">
-                            <CheckCircle2 size={18} /> ACCEPTED
+                        <div className="verdict-badge wrong">
+                          <XCircle size={18} /> Could not evaluate
+                        </div>
+                      </div>
+                      <p className="verdict-output">{executionResult.message}</p>
+                    </div>
+                  ) : executionResult?.kind === 'run' ? (
+                    <div className="verdict-card">
+                      <div className="verdict-status-row">
+                        <VerdictBadge status={executionResult.status} />
+                        <span className="metric-tag">
+                          {executionResult.passedTestCases}/{executionResult.totalTestCases} sample tests passed
+                        </span>
+                      </div>
+                      {executionResult.results.map((caseResult, index) => (
+                        <div key={index} className="run-case">
+                          <div className="run-case-header">
+                            <span>Sample {index + 1}</span>
+                            <VerdictBadge status={caseResult.status} compact />
+                            {formatMetrics(caseResult) && (
+                              <span className="metric-tag">
+                                <Clock size={13} /> {formatMetrics(caseResult)}
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <div className="verdict-badge wrong">
-                            <XCircle size={18} /> WRONG ANSWER
-                          </div>
-                        )}
-                        {executionResult.runtime && (
+                          <label className="input-label">Input</label>
+                          <pre className="input-preview">{caseResult.input}</pre>
+                          <label className="input-label">Expected</label>
+                          <pre className="input-preview">{caseResult.expectedOutput}</pre>
+                          <label className="input-label">Your output</label>
+                          <pre className="input-preview">{caseResult.actualOutput || '(no output)'}</pre>
+                          {caseResult.stderr && (
+                            <>
+                              <label className="input-label">Error output</label>
+                              <pre className="input-preview error-output">{caseResult.stderr}</pre>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : executionResult?.kind === 'submit' ? (
+                    <div className="verdict-card">
+                      <div className="verdict-status-row">
+                        <VerdictBadge status={executionResult.status} />
+                        {executionResult.totalTestCases ? (
                           <span className="metric-tag">
-                            <Clock size={13} /> {executionResult.runtime}
+                            {executionResult.passedTestCases}/{executionResult.totalTestCases} tests passed
+                          </span>
+                        ) : null}
+                        {formatMetrics(executionResult) && (
+                          <span className="metric-tag">
+                            <Clock size={13} /> {formatMetrics(executionResult)}
                           </span>
                         )}
                       </div>
-                      <p className="verdict-output">{executionResult.output || executionResult.error}</p>
+                      <p className="verdict-output">{getSubmissionMessage(executionResult.status)}</p>
+                      {executionResult.errorMessage && (
+                        <pre className="input-preview error-output">{executionResult.errorMessage}</pre>
+                      )}
                     </div>
                   ) : (
                     <p style={{ color: 'var(--color-muted)', fontSize: '13px' }}>
@@ -430,7 +448,8 @@ const handleResizeStart = (e) => {
                 variant="secondary"
                 size="small"
                 onClick={handleRunCode}
-                disabled={isRunning || isSubmitting}
+                disabled={isRunning || isSubmitting || !problem.sampleTestCases?.length}
+                title={problem.sampleTestCases?.length ? undefined : 'This problem has no public sample tests'}
               >
                 <Play size={14} />
                 <span>Run Code</span>
@@ -445,9 +464,10 @@ const handleResizeStart = (e) => {
                 <span>Submit</span>
               </Button>
             </div>
-          </div> 
+          </div>
+          </SplitPane>
         </div>
-      </div>
+      </SplitPane>
     </div>
   );
 }
