@@ -15,6 +15,14 @@ const registerUser = async ({ username, email, password }) => {
     throw createHttpError('All fields are required', 400);
   }
 
+  if (typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+    throw createHttpError('Username, email, and password must be strings', 400);
+  }
+
+  if (username.length > 30 || email.length > 254 || password.length > 128) {
+    throw createHttpError('One or more fields are too long', 400);
+  }
+
   const cleanUsername = username.trim();
   const cleanEmail = email.trim().toLowerCase();
   const cleanPassword = password.trim();
@@ -81,6 +89,10 @@ const loginUser = async ({ email, password }) => {
     throw createHttpError('Email and password are required', 400);
   }
 
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    throw createHttpError('Email and password must be strings', 400);
+  }
+
   if (!process.env.JWT_SECRET) {
     throw createHttpError('JWT secret is not configured', 500);
   }
@@ -97,7 +109,11 @@ const loginUser = async ({ email, password }) => {
       username: true,
       email: true,
       password: true,
+      role: true,
       rating: true,
+      wins: true,
+      losses: true,
+      draws: true,
       createdAt: true,
     },
   });
@@ -124,7 +140,11 @@ const loginUser = async ({ email, password }) => {
       id: user.id,
       username: user.username,
       email: user.email,
+      role: user.role,
       rating: user.rating,
+      wins: user.wins,
+      losses: user.losses,
+      draws: user.draws,
       createdAt: user.createdAt,
     },
   };
@@ -137,7 +157,11 @@ const getUserById = async (userId) => {
       id: true,
       username: true,
       email: true,
+      role: true,
       rating: true,
+      wins: true,
+      losses: true,
+      draws: true,
       createdAt: true,
     },
   });

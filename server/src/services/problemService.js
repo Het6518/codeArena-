@@ -26,12 +26,25 @@ const validateProblemInput = (data, { partial = false } = {}) => {
     'sampleOutput',
   ];
 
+  if (!data || typeof data !== 'object') {
+    throw createHttpError('Request body is required', 400);
+  }
+
   if (!partial) {
     const missingField = requiredFields.find((field) => !data[field]);
 
     if (missingField) {
       throw createHttpError(`${missingField} is required`, 400);
     }
+  }
+
+  const stringFields = [...requiredFields, 'explanation'];
+  const invalidField = stringFields.find(
+    (field) => data[field] !== undefined && data[field] !== null && typeof data[field] !== 'string'
+  );
+
+  if (invalidField) {
+    throw createHttpError(`${invalidField} must be a string`, 400);
   }
 
   if (data.title !== undefined && data.title.trim().length < 3) {
@@ -136,8 +149,12 @@ const createProblem = async (data) => {
   }
 };
 
+// Public listing only exposes published problems.
 const getProblems = async () => {
   return prisma.problem.findMany({
+    where: {
+      isPublished: true,
+    },
     orderBy: {
       createdAt: 'desc',
     },
@@ -145,6 +162,7 @@ const getProblems = async () => {
       id: true,
       title: true,
       slug: true,
+      description: true,
       difficulty: true,
       isPublished: true,
       createdAt: true,
@@ -153,10 +171,42 @@ const getProblems = async () => {
   });
 };
 
+// Hidden test cases are never selected here; only the public samples are returned
+// so the workspace can show them and the "Run" action can execute against them.
 const getProblemBySlug = async (slug) => {
-  const problem = await prisma.problem.findUnique({
+  const problem = await prisma.problem.findFirst({
     where: {
       slug,
+      isPublished: true,
+    },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      difficulty: true,
+      constraints: true,
+      sampleInput: true,
+      sampleOutput: true,
+      explanation: true,
+      timeLimitMs: true,
+      memoryLimitMb: true,
+      isPublished: true,
+      createdAt: true,
+      updatedAt: true,
+      testCases: {
+        where: {
+          isHidden: false,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+        select: {
+          id: true,
+          input: true,
+          expectedOutput: true,
+        },
+      },
     },
   });
 
@@ -164,7 +214,12 @@ const getProblemBySlug = async (slug) => {
     throw createHttpError('Problem not found', 404);
   }
 
-  return problem;
+  const { testCases, ...problemData } = problem;
+
+  return {
+    ...problemData,
+    sampleTestCases: testCases,
+  };
 };
 
 const updateProblem = async (id, data) => {
