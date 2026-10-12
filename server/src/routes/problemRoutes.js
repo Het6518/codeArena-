@@ -1,5 +1,6 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
+const requireAdmin = require('../middleware/requireAdmin');
 const {
   createProblemHandler,
   deleteProblemHandler,
@@ -18,11 +19,11 @@ router.get('/test', (req, res) => {
   });
 });
 
-router.post('/', createProblemHandler);
+router.post('/', authMiddleware, requireAdmin, createProblemHandler);
 router.get('/', getProblemsHandler);
 router.get('/:problemId/submissions', authMiddleware, getMyProblemSubmissionsHandler);
 router.get('/:slug', getProblemBySlugHandler);
-router.put('/:id', updateProblemHandler);
-router.delete('/:id', deleteProblemHandler);
+router.put('/:id', authMiddleware, requireAdmin, updateProblemHandler);
+router.delete('/:id', authMiddleware, requireAdmin, deleteProblemHandler);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const {
   getMyProblemSubmissions,
   getMySubmissions,
   getSubmissionById,
+  runCode,
 } = require('../services/submissionService');
 
 const sendErrorResponse = (res, error) => {
@@ -22,12 +23,26 @@ const sendErrorResponse = (res, error) => {
 
 const createSubmissionHandler = async (req, res) => {
   try {
-    const submission = await createSubmission(req.user.id, req.body);
+    const { submission, battle } = await createSubmission(req.user.id, req.body);
 
     return res.status(201).json({
       success: true,
       message: 'Submission created successfully',
       submission,
+      battle,
+    });
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+};
+
+const runCodeHandler = async (req, res) => {
+  try {
+    const result = await runCode(req.user.id, req.body);
+
+    return res.status(200).json({
+      success: true,
+      result,
     });
   } catch (error) {
     return sendErrorResponse(res, error);
@@ -81,5 +96,6 @@ module.exports = {
   getMyProblemSubmissionsHandler,
   getMySubmissionsHandler,
   getSubmissionByIdHandler,
+  runCodeHandler,
 };
 
