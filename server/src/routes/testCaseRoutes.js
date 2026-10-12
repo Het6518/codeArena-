@@ -1,4 +1,6 @@
 const express = require('express');
+const authMiddleware = require('../middleware/authMiddleware');
+const requireAdmin = require('../middleware/requireAdmin');
 const {
   createTestCaseHandler,
   deleteTestCaseHandler,
@@ -15,6 +17,10 @@ router.get('/test', (req, res) => {
     message: 'Test case route is working!',
   });
 });
+
+// Test cases include hidden inputs and expected outputs, so every route is admin-only.
+// Ordinary users receive public samples through GET /api/problems/:slug instead.
+router.use(authMiddleware, requireAdmin);
 
 router.post('/', createTestCaseHandler);
 router.get('/', getProblemTestCasesHandler);

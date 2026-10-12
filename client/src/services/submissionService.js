@@ -6,8 +6,13 @@ export const submissionService = {
     return response.data;
   },
 
-  async getMySubmissions() {
-    const response = await api.get('/submissions/me');
+  async runCode(payload) {
+    const response = await api.post('/submissions/run', payload);
+    return response.data;
+  },
+
+  async getMySubmissions(params) {
+    const response = await api.get('/submissions/me', { params });
     return response.data;
   },
 

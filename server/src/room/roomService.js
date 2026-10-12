@@ -1,11 +1,15 @@
+const crypto = require('crypto');
 const prisma = require('../config/prisma');
 
 const ROOM_CODE_LENGTH = 6;
 const MAX_PLAYERS_PER_ROOM = 2;
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 
+// `expose` marks messages that are safe to show to the client.
 const createSocketError = (message) => {
   const error = new Error(message);
+  error.expose = true;
   return error;
 };
 
@@ -13,11 +17,25 @@ const generateRoomCode = () => {
   let code = '';
 
   for (let index = 0; index < ROOM_CODE_LENGTH; index += 1) {
-    const randomIndex = Math.floor(Math.random() * ROOM_CODE_CHARS.length);
-    code += ROOM_CODE_CHARS[randomIndex];
+    code += ROOM_CODE_CHARS[crypto.randomInt(ROOM_CODE_CHARS.length)];
   }
 
   return code;
+};
+
+// Normalizes and validates a client supplied room code.
+const parseRoomCode = (roomCode) => {
+  if (!roomCode || typeof roomCode !== 'string') {
+    throw createSocketError('Room code is required');
+  }
+
+  const cleanRoomCode = roomCode.trim().toUpperCase();
+
+  if (!ROOM_CODE_PATTERN.test(cleanRoomCode)) {
+    throw createSocketError('Room code must be 6 letters or digits');
+  }
+
+  return cleanRoomCode;
 };
 
 const roomInclude = {
@@ -26,6 +44,12 @@ const roomInclude = {
       id: true,
       username: true,
       avatar: true,
+    },
+  },
+  winner: {
+    select: {
+      id: true,
+      username: true,
     },
   },
   selectedProblem: {
@@ -53,6 +77,7 @@ const roomInclude = {
           id: true,
           username: true,
           avatar: true,
+          rating: true,
         },
       },
     },
@@ -60,7 +85,7 @@ const roomInclude = {
 };
 
 class RoomService {
-  static serializeRoom(room) {
+  static serializeRoom(room, { onlineUserIds } = {}) {
     if (!room) {
       return null;
     }
@@ -76,13 +101,24 @@ class RoomService {
           }
         : null,
       startedAt: room.startedAt,
+      finishedAt: room.finishedAt,
+      endReason: room.endReason,
+      winner: room.winner ? { id: room.winner.id, username: room.winner.username } : null,
+      // Lets clients compute their clock offset so the stopwatch follows server time.
+      serverTime: new Date().toISOString(),
       selectedProblem: room.selectedProblem,
       players: room.players.map((player) => ({
         id: player.user.id,
         username: player.user.username,
         avatar: player.user.avatar,
+        rating: player.user.rating,
         ready: player.ready,
         isHost: player.isHost,
+        online: onlineUserIds ? onlineUserIds.has(player.user.id) : undefined,
+        solvedAt: player.solvedAt,
+        solveTimeMs: player.solveTimeMs,
+        ratingBefore: player.ratingBefore,
+        ratingAfter: player.ratingAfter,
       })),
     };
   }
@@ -100,6 +136,23 @@ class RoomService {
     }
 
     return room;
+  }
+
+  // Single-column lookup for hot paths that only need to branch on status.
+  static async getRoomStatus(roomCode) {
+    const room = await prisma.battleRoom.findUnique({
+      where: { roomCode: roomCode.toUpperCase() },
+      select: { status: true },
+    });
+
+    return room ? room.status : null;
+  }
+
+  static async getRoomById(roomId) {
+    return prisma.battleRoom.findUnique({
+      where: { id: roomId },
+      include: roomInclude,
+    });
   }
 
   static async createUniqueRoomCode() {
@@ -122,7 +175,33 @@ class RoomService {
     throw createSocketError('Could not generate a unique room code');
   }
 
+  // A user can only sit in one lobby at a time. Returns the codes of lobbies that were left
+  // so the caller can broadcast updates to the players remaining in them.
+  static async leaveOtherWaitingRooms(userId, exceptRoomCode = null) {
+    const memberships = await prisma.battleRoomPlayer.findMany({
+      where: {
+        userId,
+        room: {
+          status: 'WAITING',
+          ...(exceptRoomCode ? { roomCode: { not: exceptRoomCode } } : {}),
+        },
+      },
+      select: {
+        room: { select: { roomCode: true } },
+      },
+    });
+
+    const results = [];
+
+    for (const membership of memberships) {
+      results.push(await RoomService.leaveRoom(userId, membership.room.roomCode));
+    }
+
+    return results;
+  }
+
   static async createRoom(userId) {
+    const leftRooms = await RoomService.leaveOtherWaitingRooms(userId);
     const roomCode = await RoomService.createUniqueRoomCode();
 
     const room = await prisma.battleRoom.create({
@@ -141,40 +220,45 @@ class RoomService {
       include: roomInclude,
     });
 
-    return RoomService.serializeRoom(room);
+    return {
+      room: RoomService.serializeRoom(room),
+      leftRooms,
+    };
   }
 
   static async joinRoom(userId, roomCode) {
-    if (!roomCode || typeof roomCode !== 'string') {
-      throw createSocketError('Room code is required');
-    }
+    const cleanRoomCode = parseRoomCode(roomCode);
 
-    const cleanRoomCode = roomCode.trim().toUpperCase();
-
+    // Load the full room once: reconnects (the common, bursty case) need nothing more.
     const room = await prisma.battleRoom.findUnique({
       where: {
         roomCode: cleanRoomCode,
       },
-      include: {
-        players: true,
-      },
+      include: roomInclude,
     });
 
     if (!room) {
       throw createSocketError('Invalid room code');
     }
 
+    const alreadyJoined = room.players.some((player) => player.userId === userId);
+
+    // Existing players may always reconnect (e.g. page refresh during a battle).
+    if (alreadyJoined) {
+      return { room: RoomService.serializeRoom(room), leftRooms: [] };
+    }
+
     if (room.status !== 'WAITING') {
       throw createSocketError('Battle has already started');
     }
 
-    const alreadyJoined = room.players.some((player) => player.userId === userId);
-
-    if (!alreadyJoined && room.players.length >= MAX_PLAYERS_PER_ROOM) {
+    if (room.players.length >= MAX_PLAYERS_PER_ROOM) {
       throw createSocketError('Room is full');
     }
 
-    if (!alreadyJoined) {
+    const leftRooms = await RoomService.leaveOtherWaitingRooms(userId, cleanRoomCode);
+
+    try {
       await prisma.battleRoomPlayer.create({
         data: {
           roomId: room.id,
@@ -183,18 +267,34 @@ class RoomService {
           ready: false,
         },
       });
+    } catch (error) {
+      if (error.code !== 'P2002') {
+        throw error;
+      }
+    }
+
+    // Re-check capacity after the insert: two users joining at the same moment could both
+    // pass the check above. The later joiner is removed again.
+    const players = await prisma.battleRoomPlayer.findMany({
+      where: { roomId: room.id },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+    });
+
+    if (players.length > MAX_PLAYERS_PER_ROOM) {
+      const position = players.findIndex((player) => player.userId === userId);
+
+      if (position >= MAX_PLAYERS_PER_ROOM) {
+        await prisma.battleRoomPlayer.deleteMany({ where: { roomId: room.id, userId } });
+        throw createSocketError('Room is full');
+      }
     }
 
     const updatedRoom = await RoomService.getRoomByCode(cleanRoomCode);
-    return RoomService.serializeRoom(updatedRoom);
+    return { room: RoomService.serializeRoom(updatedRoom), leftRooms };
   }
 
   static async setReady(userId, roomCode, ready) {
-    const cleanRoomCode = roomCode && roomCode.trim().toUpperCase();
-
-    if (!cleanRoomCode) {
-      throw createSocketError('Room code is required');
-    }
+    const cleanRoomCode = parseRoomCode(roomCode);
 
     const room = await prisma.battleRoom.findUnique({
       where: {
@@ -209,8 +309,8 @@ class RoomService {
       throw createSocketError('Room not found');
     }
 
-    if (room.status === 'IN_PROGRESS') {
-      throw createSocketError('Battle is already in progress');
+    if (room.status !== 'WAITING') {
+      throw createSocketError('Battle is already in progress or finished');
     }
 
     const player = room.players.find((roomPlayer) => roomPlayer.userId === userId);
@@ -241,76 +341,66 @@ class RoomService {
     const selectedProblem = await RoomService.getRandomProblem();
     const startedAt = new Date();
 
-    await prisma.$transaction([
-      prisma.battleRoom.update({
-        where: {
-          id: latestRoom.id,
-        },
-        data: {
-          status: 'READY',
-        },
-      }),
-      prisma.battleRoom.update({
-        where: {
-          id: latestRoom.id,
-        },
-        data: {
-          status: 'IN_PROGRESS',
-          selectedProblemId: selectedProblem.id,
-          startedAt,
-        },
-      }),
-    ]);
+    // Conditional update: if both players click ready at the same moment, only one request
+    // moves the room out of WAITING, so the battle starts exactly once with one problem.
+    const { count } = await prisma.battleRoom.updateMany({
+      where: {
+        id: latestRoom.id,
+        status: 'WAITING',
+      },
+      data: {
+        status: 'IN_PROGRESS',
+        selectedProblemId: selectedProblem.id,
+        startedAt,
+      },
+    });
 
     const startedRoom = await RoomService.getRoomByCode(cleanRoomCode);
 
     return {
       room: RoomService.serializeRoom(startedRoom),
-      selectedProblem,
-      started: true,
+      selectedProblem: startedRoom.selectedProblem,
+      started: count === 1,
     };
   }
 
+  // Only published problems that actually have test cases can be judged.
   static async getRandomProblem() {
-    const problemCount = await prisma.problem.count({
-      where: {
-        isPublished: true,
+    const where = {
+      isPublished: true,
+      testCases: {
+        some: {},
       },
-    });
+    };
+
+    const problemCount = await prisma.problem.count({ where });
 
     if (problemCount === 0) {
       throw createSocketError('No published problems are available');
     }
 
-    const skip = Math.floor(Math.random() * problemCount);
+    const skip = crypto.randomInt(problemCount);
     const problems = await prisma.problem.findMany({
-      where: {
-        isPublished: true,
-      },
+      where,
+      orderBy: { id: 'asc' },
       skip,
       take: 1,
       select: {
         id: true,
-        title: true,
-        slug: true,
-        difficulty: true,
-        description: true,
-        constraints: true,
-        sampleInput: true,
-        sampleOutput: true,
-        explanation: true,
-        timeLimitMs: true,
-        memoryLimitMb: true,
       },
     });
 
     return problems[0];
   }
 
+  // Leaving a lobby (WAITING) removes the player. Leaving an IN_PROGRESS battle is a forfeit,
+  // which is handled by BattleService; the player row is kept for the result history.
   static async leaveRoom(userId, roomCode) {
-    const cleanRoomCode = roomCode && roomCode.trim().toUpperCase();
+    let cleanRoomCode;
 
-    if (!cleanRoomCode) {
+    try {
+      cleanRoomCode = parseRoomCode(roomCode);
+    } catch (error) {
       return {
         deleted: false,
         room: null,
@@ -339,15 +429,16 @@ class RoomService {
 
     const leavingPlayer = room.players.find((player) => player.userId === userId);
 
-    if (!leavingPlayer) {
+    if (!leavingPlayer || room.status !== 'WAITING') {
       const currentRoom = await RoomService.getRoomByCode(cleanRoomCode);
       return {
         deleted: false,
         room: RoomService.serializeRoom(currentRoom),
+        inBattle: Boolean(leavingPlayer) && room.status === 'IN_PROGRESS',
       };
     }
 
-    await prisma.battleRoomPlayer.delete({
+    await prisma.battleRoomPlayer.deleteMany({
       where: {
         id: leavingPlayer.id,
       },
@@ -356,7 +447,7 @@ class RoomService {
     const remainingPlayers = room.players.filter((player) => player.userId !== userId);
 
     if (remainingPlayers.length === 0) {
-      await prisma.battleRoom.delete({
+      await prisma.battleRoom.deleteMany({
         where: {
           id: room.id,
         },
@@ -368,28 +459,26 @@ class RoomService {
       };
     }
 
-    if (leavingPlayer.isHost) {
-      const newHost = remainingPlayers[0];
-
-      await prisma.$transaction([
-        prisma.battleRoom.update({
-          where: {
-            id: room.id,
-          },
-          data: {
-            hostId: newHost.userId,
-          },
-        }),
-        prisma.battleRoomPlayer.update({
-          where: {
-            id: newHost.id,
-          },
-          data: {
-            isHost: true,
-          },
-        }),
-      ]);
-    }
+    // The remaining player becomes host and must confirm readiness again.
+    await prisma.$transaction([
+      prisma.battleRoom.update({
+        where: {
+          id: room.id,
+        },
+        data: {
+          hostId: remainingPlayers[0].userId,
+        },
+      }),
+      prisma.battleRoomPlayer.update({
+        where: {
+          id: remainingPlayers[0].id,
+        },
+        data: {
+          isHost: true,
+          ready: false,
+        },
+      }),
+    ]);
 
     const updatedRoom = await RoomService.getRoomByCode(cleanRoomCode);
 
@@ -399,5 +488,8 @@ class RoomService {
     };
   }
 }
+
+RoomService.parseRoomCode = parseRoomCode;
+RoomService.MAX_PLAYERS_PER_ROOM = MAX_PLAYERS_PER_ROOM;
 
 module.exports = RoomService;
