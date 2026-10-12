@@ -7,7 +7,7 @@ export function CodeEditor({ value, onChange, language = 'javascript' }) {
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'light';
 
   return (
-    <div className="monaco-editor-wrapper" style={{ width: '100%', height: '100%', minHeight: '340px' }}>
+    <div className="monaco-editor-wrapper" style={{ width: '100%', height: '100%', minHeight: 0 }}>
       <Editor
         height="100%"
         language={language}

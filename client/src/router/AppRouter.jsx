@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { AppLayout } from '../layouts/AppLayout';
 import { DashboardPage } from '../pages/DashboardPage';
+import { LandingPage } from '../pages/LandingPage';
 import { ProblemsPage } from '../pages/ProblemsPage';
 import { ProblemWorkspacePage } from '../pages/ProblemWorkspacePage';
 import { BattlesPage } from '../pages/BattlesPage';
@@ -14,7 +15,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/dashboard" replace />,
+    element: <LandingPage />,
   },
   {
     path: '/register',
@@ -63,7 +64,7 @@ const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />,
+    element: <Navigate to="/" replace />,
   },
 ]);
 

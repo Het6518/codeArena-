@@ -1,266 +1,377 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Timer,
-  CheckCircle2,
-  XCircle,
-  Trophy,
-  Send,
-  RotateCcw,
-  LogOut,
-  Zap,
-  Code2,
-} from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Timer, Trophy, Send, RotateCcw, LogOut, Zap, Code2, ArrowLeft, Swords } from 'lucide-react';
 import { Card, Button, Spinner } from '../components/ui';
 import { CodeEditor } from '../components/editor/CodeEditor';
-import { getSocket } from '../services/socket';
+import { SplitPane } from '../components/layout/SplitPane';
+import { VerdictBadge } from '../components/common/VerdictBadge';
+import { getSocket, emitWithAck } from '../services/socket';
 import { useAuthStore } from '../store/useAuthStore';
 import { submissionService } from '../services/submissionService';
-import toast from 'react-hot-toast';
+import { DEFAULT_BOILERPLATES, LANGUAGE_OPTIONS, getVerdictLabel } from '../constants/languages';
 
-const DEFAULT_BOILERPLATES = {
-  javascript: `const fs = require('fs');
-const input = fs.readFileSync(0, 'utf8').trim().split(/\s+/).map(Number);
-
-const a = input[0];
-const b = input[1];
-
-console.log(a + b);`,
-  python: `import sys
-
-numbers = list(map(int, sys.stdin.read().strip().split()))
-a, b = numbers[0], numbers[1]
-
-print(a + b)`,
-  cpp: `#include <bits/stdc++.h>
-using namespace std;
-
-int main() {
-    long long a, b;
-    cin >> a >> b;
-    cout << a + b << '\n';
-    return 0;
-}`,
+const formatElapsed = (ms) => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const mmss = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return hours ? `${hours}:${mmss}` : mmss;
 };
+
+const END_REASON_TEXT = {
+  SOLVED: 'solved the problem first',
+  DRAW: 'Both players solved it at the same moment',
+  FORFEIT: 'won by forfeit',
+};
+
+const draftKey = (roomCode) => `codearena_battle_draft_${roomCode}`;
+
+const loadDraft = (roomCode) => {
+  try {
+    return JSON.parse(sessionStorage.getItem(draftKey(roomCode))) || null;
+  } catch {
+    return null;
+  }
+};
+
 export function BattleRoomArenaPage() {
-  const { roomCode } = useParams();
+  const params = useParams();
+  const roomCode = params.roomCode?.toUpperCase();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const refreshUser = useAuthStore((state) => state.refreshUser);
 
-  const [socket, setSocket] = useState(null);
   const [room, setRoom] = useState(null);
-  const [problem, setProblem] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
-  const [language, setLanguage] = useState('javascript');
-  const [code, setCode] = useState(DEFAULT_BOILERPLATES.javascript);
+  const initialDraft = loadDraft(roomCode);
+  const [language, setLanguage] = useState(initialDraft?.language || 'javascript');
+  const [code, setCode] = useState(initialDraft?.code || DEFAULT_BOILERPLATES.javascript);
 
-  const [timeLeft, setTimeLeft] = useState(900);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [verdict, setVerdict] = useState(null);
-  const [winner, setWinner] = useState(null);
-  const [battleLocked, setBattleLocked] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const [opponentActivity, setOpponentActivity] = useState(null);
+  const [showResults, setShowResults] = useState(true);
+  const submittingRef = useRef(false);
 
-  const battleLockedRef = useRef(false);
-
-  const syncWinnerState = (winnerUsername) => {
-    if (!winnerUsername) return;
-    battleLockedRef.current = true;
-    setBattleLocked(true);
-    setWinner(winnerUsername);
-    setVerdict('ACCEPTED');
-    setIsSubmitting(false);
-  };
-
-  const declareWinner = (winnerName) => {
-    if (battleLockedRef.current) return;
-
-    battleLockedRef.current = true;
-    setBattleLocked(true);
-    setWinner(winnerName);
-    setVerdict('ACCEPTED');
-    setIsSubmitting(false);
-
-    if (socket && roomCode) {
-      socket.emit('battle-first-submit-wins', {
-        roomCode,
-        winnerUsername: winnerName,
-      });
+  const applyRoom = useCallback((nextRoom) => {
+    if (!nextRoom) return;
+    if (nextRoom.serverTime) {
+      setClockOffsetMs(new Date(nextRoom.serverTime).getTime() - Date.now());
     }
-
-    toast.success(`🎉 ${winnerName} won the battle!`);
-  };
+    setRoom(nextRoom);
+  }, [setClockOffsetMs, setRoom]);
 
   useEffect(() => {
-    const activeSocket = getSocket();
-    setSocket(activeSocket);
+    const socket = getSocket();
+    let cancelled = false;
 
-    if (!activeSocket.connected) {
-      activeSocket.connect();
-    }
-
-    activeSocket.emit(
-      'join-room',
-      { roomCode: roomCode?.toUpperCase() },
-      (res) => {
-        if (res?.success && res?.room) {
-          setRoom(res.room);
-          if (res.room.selectedProblem) {
-            setProblem(res.room.selectedProblem);
+    const join = () => {
+      emitWithAck('join-room', { roomCode })
+        .then((response) => {
+          if (cancelled) return;
+          if (response.room.status === 'WAITING') {
+            navigate('/battles', { replace: true, state: { roomCode } });
+            return;
           }
-          if (res.room.winnerUsername) {
-            syncWinnerState(res.room.winnerUsername);
-          }
-        }
-      }
-    );
+          applyRoom(response.room);
+        })
+        .catch((error) => {
+          if (!cancelled) setLoadError(error.message);
+        });
+    };
 
     function handleRoomUpdate(data) {
-      if (data?.success && data?.room) {
-        setRoom(data.room);
-        if (data.room.selectedProblem) {
-          setProblem(data.room.selectedProblem);
-        }
-        if (data.room.winnerUsername) {
-          syncWinnerState(data.room.winnerUsername);
-        }
+      if (data?.room?.roomCode === roomCode) applyRoom(data.room);
+    }
+
+    function handleBattleEnd(data) {
+      if (data?.room?.roomCode !== roomCode) return;
+      applyRoom(data.room);
+      setShowResults(true);
+      refreshUser();
+    }
+
+    function handleActivity(data) {
+      if (data?.userId && data.userId !== user?.id) {
+        setOpponentActivity(data.status);
       }
     }
 
-    function handleBattleStart(data) {
-      if (data?.room) {
-        setRoom(data.room);
-        if (data.selectedProblem || data.room.selectedProblem) {
-          setProblem(data.selectedProblem || data.room.selectedProblem);
-        }
-        if (data.room.winnerUsername) {
-          syncWinnerState(data.room.winnerUsername);
-        }
-      }
+    function handlePresence(data) {
+      setRoom((current) =>
+        current
+          ? {
+              ...current,
+              players: current.players.map((player) =>
+                player.id === data?.userId ? { ...player, online: data.online } : player
+              ),
+            }
+          : current
+      );
     }
 
-    function handleFirstSubmitWins(data) {
-      if (data?.winnerUsername) {
-        syncWinnerState(data.winnerUsername);
-      }
+    socket.on('player-presence', handlePresence);
+    socket.on('room-update', handleRoomUpdate);
+    socket.on('battle-end', handleBattleEnd);
+    socket.on('battle-activity', handleActivity);
+    // Re-join after a reconnect so this socket is subscribed to the room again.
+    function handleConnectError(error) {
+      if (!cancelled) setLoadError(error.message || 'Could not connect to the battle server');
     }
 
-    activeSocket.on('room-update', handleRoomUpdate);
-    activeSocket.on('battle-start', handleBattleStart);
-    activeSocket.on('battle-first-submit-wins', handleFirstSubmitWins);
+    socket.on('connect', join);
+    socket.on('connect_error', handleConnectError);
+
+    if (socket.connected) {
+      join();
+    } else {
+      socket.connect();
+    }
 
     return () => {
-      activeSocket.off('room-update', handleRoomUpdate);
-      activeSocket.off('battle-start', handleBattleStart);
-      activeSocket.off('battle-first-submit-wins', handleFirstSubmitWins);
+      cancelled = true;
+      socket.off('player-presence', handlePresence);
+      socket.off('room-update', handleRoomUpdate);
+      socket.off('battle-end', handleBattleEnd);
+      socket.off('battle-activity', handleActivity);
+      socket.off('connect', join);
+      socket.off('connect_error', handleConnectError);
     };
-  }, [roomCode]);
+  }, [roomCode, navigate, applyRoom, refreshUser, user?.id, retryKey]);
+
+  const isFinished = room?.status === 'FINISHED';
 
   useEffect(() => {
-    if (timeLeft <= 0 || winner) return;
+    if (!room?.startedAt || isFinished) return undefined;
+    const interval = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(interval);
+  }, [room?.startedAt, isFinished]);
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, winner]);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleLeaveBattle = () => {
-    if (socket && roomCode) {
-      socket.emit('leave-room', { roomCode });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(draftKey(roomCode), JSON.stringify({ language, code }));
+    } catch {
+      // Storage may be unavailable (private mode); drafts are a convenience only.
     }
+  }, [roomCode, language, code]);
+
+  const startedAtMs = room?.startedAt ? new Date(room.startedAt).getTime() : null;
+  const endMs = isFinished && room?.finishedAt ? new Date(room.finishedAt).getTime() : now + clockOffsetMs;
+  const elapsedMs = startedAtMs ? endMs - startedAtMs : 0;
+
+  const problem = room?.selectedProblem;
+  const me = room?.players?.find((player) => player.id === user?.id);
+  const opponent = room?.players?.find((player) => player.id !== user?.id);
+
+  const handleLeaveBattle = async () => {
+    if (room?.status === 'IN_PROGRESS') {
+      const confirmed = window.confirm('Leaving now forfeits the battle and your opponent wins. Leave anyway?');
+      if (!confirmed) return;
+    }
+
+    try {
+      await emitWithAck('leave-room', { roomCode });
+    } catch {
+      // Navigation should not be blocked by a failed leave acknowledgement.
+    }
+    sessionStorage.removeItem(draftKey(roomCode));
     navigate('/battles');
   };
 
   const handleSubmitBattleSolution = async () => {
-    if (!problem?.id || battleLockedRef.current || winner) return;
+    if (!problem?.id || submittingRef.current || room?.status !== 'IN_PROGRESS') return;
 
+    submittingRef.current = true;
     setIsSubmitting(true);
+    setLastResult(null);
 
     try {
-      await submissionService.createSubmission({
+      const response = await submissionService.createSubmission({
         problemId: problem.id,
         language,
         sourceCode: code,
+        roomCode,
       });
-    } catch (err) {
-      // No compiler right now, so we simulate the battle result locally.
-      // First submit still wins.
+      setLastResult({ submission: response.submission });
+    } catch (error) {
+      setLastResult({ error: error.message || 'Submission could not be evaluated' });
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
-    }
-
-    if (!battleLockedRef.current) {
-      declareWinner(user?.username || 'You');
     }
   };
 
-  const opponent =
-    room?.players?.find((p) => p.id !== user?.id) || { username: 'Challenger' };
+  if (loadError) {
+    return (
+      <div className="page-view">
+        <Card className="placeholder-content">
+          <Swords size={40} style={{ color: 'var(--color-danger)' }} />
+          <h2>Cannot open battle {roomCode}</h2>
+          <p>{loadError}</p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setLoadError(null);
+                setRetryKey((key) => key + 1);
+              }}
+            >
+              <RotateCcw size={16} /> Try again
+            </Button>
+            <Link to="/battles">
+              <Button variant="secondary">
+                <ArrowLeft size={16} /> Back to Battles
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!room) {
+    return (
+      <div className="placeholder-content" style={{ minHeight: '60vh' }}>
+        <Spinner label="Joining battle..." />
+        <p className="problem-desc">Joining battle {roomCode}...</p>
+      </div>
+    );
+  }
+
+  const opponentStatus = (() => {
+    if (!opponent) return { label: 'LEFT', className: 'offline' };
+    if (opponent.solveTimeMs !== null && opponent.solveTimeMs !== undefined) return { label: 'SOLVED', className: 'solved' };
+    if (opponent.online === false) return { label: 'OFFLINE', className: 'offline' };
+    if (opponentActivity === 'PENDING') return { label: 'SUBMITTING', className: '' };
+    if (opponentActivity) return { label: getVerdictLabel(opponentActivity).toUpperCase(), className: '' };
+    return { label: 'CODING', className: '' };
+  })();
+
+  const resultTitle = !isFinished
+    ? ''
+    : room.winner === null
+      ? 'Draw'
+      : room.winner.id === user?.id
+        ? 'Victory'
+        : 'Defeat';
 
   return (
     <div className="leetcode-workspace animate-fade-in">
       <div className="battle-hud-bar">
         <div className="hud-left">
           <span className="live-pill">
-            <Zap size={12} /> BATTLE LIVE
+            <Zap size={12} /> {isFinished ? 'BATTLE OVER' : 'BATTLE LIVE'}
           </span>
           <span className="hud-room-code">Room: {roomCode}</span>
         </div>
 
-        <div className="hud-center-timer">
-          <Timer size={18} className="pulse-icon" style={{ color: 'var(--color-accent)' }} />
-          <span className="timer-text">{formatTime(timeLeft)}</span>
+        <div className="hud-center-timer" title="Elapsed time since the battle started (server time)">
+          <Timer size={18} style={{ color: 'var(--color-accent)' }} />
+          <span className="timer-text">{formatElapsed(elapsedMs)}</span>
         </div>
 
         <div className="hud-right-players">
           <div className="player-badge me">
-            <span className="player-name">You ({user?.username || 'Player 1'})</span>
-            <span className="status-indicator ready">CODING</span>
+            <span className="player-name">You ({user?.username})</span>
+            <span className={`status-indicator ${me?.solveTimeMs !== null && me?.solveTimeMs !== undefined ? 'solved' : ''}`}>
+              {me?.solveTimeMs !== null && me?.solveTimeMs !== undefined ? 'SOLVED' : 'CODING'}
+            </span>
           </div>
 
           <span className="vs-divider">VS</span>
 
           <div className="player-badge opponent">
-            <span className="player-name">{opponent.username}</span>
-            <span className="status-indicator ready">CODING</span>
+            <span className="player-name">{opponent?.username || 'Opponent'}</span>
+            <span className={`status-indicator ${opponentStatus.className}`}>{opponentStatus.label}</span>
           </div>
 
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleLeaveBattle}
-            style={{ color: 'var(--color-danger)' }}
-          >
-            <LogOut size={14} /> Leave
+          <Button variant="secondary" size="small" onClick={handleLeaveBattle} style={{ color: 'var(--color-danger)' }}>
+            <LogOut size={14} /> {isFinished ? 'Exit' : 'Forfeit'}
           </Button>
         </div>
       </div>
 
-      {winner && (
-        <div className="victory-modal-overlay">
+      {isFinished && showResults && (
+        <div className="victory-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="battle-result-title">
           <Card className="victory-card animate-fade-in">
-            <Trophy size={56} style={{ color: '#f59e0b', margin: '0 auto' }} />
-            <h2>VICTORY DECLARED!</h2>
-            <p style={{ color: 'var(--color-muted)', textAlign: 'center' }}>
-              <strong>{winner}</strong> solved the problem first and won the match!
+            <Trophy size={48} style={{ color: 'var(--color-accent)', margin: '0 auto' }} />
+            <h2 id="battle-result-title">{resultTitle}</h2>
+            <p style={{ color: 'var(--color-muted)' }}>
+              {room.endReason === 'DRAW' || !room.winner ? (
+                END_REASON_TEXT.DRAW
+              ) : (
+                <>
+                  <strong>{room.winner.username}</strong> {END_REASON_TEXT[room.endReason] || 'won'}
+                </>
+              )}
             </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
+
+            <table className="battle-result-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Solve time</th>
+                  <th>Rating</th>
+                </tr>
+              </thead>
+              <tbody>
+                {room.players.map((player) => {
+                  const delta =
+                    player.ratingAfter !== null && player.ratingBefore !== null && player.ratingAfter !== undefined
+                      ? player.ratingAfter - player.ratingBefore
+                      : null;
+                  return (
+                    <tr key={player.id}>
+                      <td>
+                        {player.username}
+                        {player.id === user?.id ? ' (you)' : ''}
+                      </td>
+                      <td>{player.solveTimeMs !== null && player.solveTimeMs !== undefined ? formatElapsed(player.solveTimeMs) : '—'}</td>
+                      <td>
+                        {player.ratingAfter ?? player.rating}
+                        {delta !== null && (
+                          <span className={`rating-delta ${delta >= 0 ? 'positive' : 'negative'}`}>
+                            {' '}
+                            ({delta >= 0 ? '+' : ''}
+                            {delta})
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
               <Button variant="primary" onClick={() => navigate('/battles')}>
-                Return to Battle Lobby
+                Back to Battles
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/leaderboard')}>
+                Leaderboard
+              </Button>
+              <Button variant="ghost" onClick={() => setShowResults(false)}>
+                Review code
               </Button>
             </div>
           </Card>
         </div>
       )}
 
-      <div className="workspace-grid" style={{ marginTop: '12px' }}>
+      <SplitPane
+        direction="horizontal"
+        className="workspace-split"
+        defaultSize={42}
+        min={25}
+        max={70}
+        storageKey="codearena_split_arena"
+        label="Resize problem and editor panels"
+      >
         <div className="left-panel">
           <div className="panel-tab-bar">
             <div className="panel-tab active">
@@ -270,29 +381,43 @@ export function BattleRoomArenaPage() {
           </div>
 
           <div className="panel-content-scroll">
-            <div className="problem-header-row">
-              <h1 className="problem-title-text">{problem?.title || 'Two Sum'}</h1>
-              <span className={`difficulty-badge ${problem?.difficulty?.toLowerCase() || 'easy'}`}>
-                {problem?.difficulty || 'EASY'}
-              </span>
-            </div>
+            {problem ? (
+              <>
+                <div className="problem-header-row">
+                  <h1 className="problem-title-text">{problem.title}</h1>
+                  <span className={`difficulty-badge ${problem.difficulty?.toLowerCase()}`}>{problem.difficulty}</span>
+                </div>
 
-            <div className="user-menu-divider" style={{ margin: '16px 0' }} />
+                <div className="user-menu-divider" style={{ margin: '16px 0' }} />
 
-            <p style={{ whiteSpace: 'pre-line', lineHeight: '1.65' }}>
-              {problem?.description ||
-                'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.'}
-            </p>
+                <p style={{ whiteSpace: 'pre-line', lineHeight: '1.65' }}>{problem.description}</p>
 
-            {problem?.sampleInput && (
-              <div className="sample-block">
-                <span className="block-label">Sample Input:</span>
-                <div className="code-box">{problem.sampleInput}</div>
-                <span className="block-label" style={{ marginTop: '8px' }}>
-                  Sample Output:
-                </span>
-                <div className="code-box">{problem.sampleOutput}</div>
-              </div>
+                {problem.sampleInput && (
+                  <div className="sample-block">
+                    <span className="block-label">Sample Input:</span>
+                    <div className="code-box">{problem.sampleInput}</div>
+                    <span className="block-label" style={{ marginTop: '8px' }}>
+                      Sample Output:
+                    </span>
+                    <div className="code-box">{problem.sampleOutput}</div>
+                  </div>
+                )}
+
+                {problem.constraints && (
+                  <div className="sample-block">
+                    <span className="block-label">Constraints:</span>
+                    <ul className="constraints-list">
+                      {problem.constraints.split('\n').map((constraint, index) => (
+                        <li key={index}>
+                          <code>{constraint}</code>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="problem-desc">The battle problem is not available.</p>
             )}
           </div>
         </div>
@@ -302,59 +427,91 @@ export function BattleRoomArenaPage() {
             <select
               className="language-select"
               value={language}
+              disabled={isFinished}
               onChange={(e) => {
                 const nextLanguage = e.target.value;
                 setLanguage(nextLanguage);
                 setCode(DEFAULT_BOILERPLATES[nextLanguage]);
               }}
             >
-              <option value="javascript">JavaScript (ES6)</option>
-              <option value="python">Python 3</option>
-              <option value="cpp">C++ 17</option>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
 
             <button
               type="button"
               className="editor-icon-btn"
+              disabled={isFinished}
               onClick={() => setCode(DEFAULT_BOILERPLATES[language])}
             >
               <RotateCcw size={14} /> Reset
             </button>
           </div>
 
+          <SplitPane
+            direction="vertical"
+            defaultSize={70}
+            min={25}
+            max={88}
+            storageKey="codearena_split_arena_editor"
+            label="Resize editor and result panel"
+          >
           <div className="editor-workspace-container">
-            <CodeEditor
-              value={code}
-              onChange={(val) => setCode(val || '')}
-              language={language}
-            />
+            <CodeEditor value={code} onChange={(val) => setCode(val || '')} language={language} />
           </div>
 
-          <div className="console-panel" style={{ height: '140px' }}>
-            <div className="console-actions-bar" style={{ height: '100%', alignItems: 'center' }}>
-              {verdict && (
-                <div
-                  className={`verdict-badge ${verdict === 'ACCEPTED' ? 'accepted' : 'wrong'}`}
-                  style={{ marginRight: 'auto' }}
-                >
-                  {verdict === 'ACCEPTED' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                  {verdict}
+          <div className="console-panel">
+            <div className="console-body">
+              {isSubmitting ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Spinner size="small" />
+                  <span>Judging against all test cases...</span>
                 </div>
+              ) : lastResult?.error ? (
+                <div className="verdict-card">
+                  <p className="verdict-output" style={{ color: 'var(--color-danger)' }}>
+                    {lastResult.error}
+                  </p>
+                </div>
+              ) : lastResult?.submission ? (
+                <div className="verdict-card">
+                  <div className="verdict-status-row">
+                    <VerdictBadge status={lastResult.submission.status} />
+                    {lastResult.submission.totalTestCases ? (
+                      <span className="metric-tag">
+                        {lastResult.submission.passedTestCases}/{lastResult.submission.totalTestCases} tests passed
+                      </span>
+                    ) : null}
+                  </div>
+                  {lastResult.submission.errorMessage && (
+                    <pre className="input-preview error-output">{lastResult.submission.errorMessage}</pre>
+                  )}
+                  {lastResult.submission.status === 'ACCEPTED' && !isFinished && (
+                    <p className="verdict-output">Accepted. Waiting for the server to confirm the result...</p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--color-muted)', fontSize: '13px' }}>
+                  {isFinished
+                    ? 'The battle is over.'
+                    : 'Your submission is judged against every test case, including hidden ones. The first accepted submission received by the server wins.'}
+                </p>
               )}
+            </div>
 
-              <Button
-                variant="primary"
-                onClick={handleSubmitBattleSolution}
-                disabled={isSubmitting || Boolean(winner) || battleLocked}
-              >
+            <div className="console-actions-bar">
+              <Button variant="primary" onClick={handleSubmitBattleSolution} disabled={isSubmitting || isFinished || !problem}>
                 {isSubmitting ? <Spinner size="small" /> : <Send size={16} />}
                 <span>Submit Solution</span>
               </Button>
             </div>
           </div>
+          </SplitPane>
         </div>
-      </div>
+      </SplitPane>
     </div>
   );
 }
-
