@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Code2, LayoutDashboard, Menu, Swords, Trophy, X } from 'lucide-react';
+import { Logo } from '../common/Logo';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { UserMenu } from './UserMenu';
 
@@ -36,19 +37,17 @@ export function Navbar() {
           aria-expanded={isMobileMenuOpen}
           aria-controls="mobile-nav"
         >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
 
         <Link to="/dashboard" className="navbar-logo-link" aria-label="CodeArena dashboard">
-          <span className="brand-title">
-            Code<span className="brand-highlight">Arena</span>
-          </span>
+          <Logo />
         </Link>
 
         <nav className="topnav" aria-label="Main navigation">
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
             <NavLink key={path} to={path} className={({ isActive }) => `topnav-link${isActive ? ' active' : ''}`}>
-              <Icon size={16} />
+              <Icon size={15} />
               <span>{label}</span>
             </NavLink>
           ))}

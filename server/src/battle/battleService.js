@@ -2,7 +2,9 @@ const prisma = require('../config/prisma');
 const RoomService = require('../room/roomService');
 const { getIo } = require('../socket/io');
 const { calculateEloChange } = require('./rating');
-const { determineBattleOutcome } = require('./winner');
+const { determineBattleOutcome, determineTimeoutOutcome, getDeadline, isPastDeadline } = require('./winner');
+
+const SWEEP_INTERVAL_MS = 15000;
 
 const createHttpError = (message, statusCode) => {
   const error = new Error(message);
@@ -48,12 +50,20 @@ const validateBattleSubmission = async (userId, roomCode, problemId) => {
       roomCode: true,
       status: true,
       selectedProblemId: true,
+      startedAt: true,
+      durationMs: true,
       players: { select: { userId: true } },
     },
   });
 
   if (!room) {
     throw createHttpError('Battle room not found', 404);
+  }
+
+  if (room.status === 'IN_PROGRESS' && isPastDeadline(room)) {
+    // Close the battle now rather than waiting for the sweeper.
+    finalizeExpiredBattle(room.id).catch((error) => console.error('[battle timeout]', error.message));
+    throw createHttpError('Time is up for this battle', 409);
   }
 
   if (!room.players.some((player) => player.userId === userId)) {
@@ -212,7 +222,89 @@ const onBattleSubmissionEvaluated = async (submission) => {
     emitOpponentActivity(room.roomCode, submission.userId, submission.status);
   }
 
-  return tryFinalizeBattle(submission.battleRoomId);
+  const finished = await tryFinalizeBattle(submission.battleRoomId);
+  // A submission judged after the deadline may have been the last thing the timeout waited for.
+  return finished || finalizeExpiredBattle(submission.battleRoomId);
+};
+
+// Ends a battle whose clock has run out. Submissions received before the deadline still count.
+const finalizeExpiredBattle = async (roomId) => {
+  const room = await prisma.battleRoom.findUnique({
+    where: { id: roomId },
+    select: {
+      id: true,
+      status: true,
+      startedAt: true,
+      durationMs: true,
+      players: { select: { userId: true } },
+    },
+  });
+
+  if (!room || room.status !== 'IN_PROGRESS' || !isPastDeadline(room)) {
+    return null;
+  }
+
+  const submissions = await prisma.submission.findMany({
+    where: {
+      battleRoomId: roomId,
+      userId: { in: room.players.map((player) => player.userId) },
+    },
+    select: { id: true, userId: true, status: true, createdAt: true },
+  });
+
+  const outcome = determineTimeoutOutcome(submissions);
+
+  if (!outcome.decided) {
+    return null;
+  }
+
+  return completeBattle({
+    roomId,
+    winnerId: outcome.winnerId,
+    endReason: outcome.endReason,
+    acceptedByUser: outcome.acceptedByUser,
+  });
+};
+
+// Fires right at the deadline of a battle that just started. The sweeper below covers
+// battles that were running when the server restarted.
+const scheduleBattleTimeout = (room) => {
+  const deadline = getDeadline({
+    startedAt: room.startedAt,
+    durationMs: room.durationMs,
+  });
+
+  if (deadline === null) return;
+
+  setTimeout(async () => {
+    try {
+      const found = await prisma.battleRoom.findUnique({ where: { roomCode: room.roomCode }, select: { id: true } });
+      if (found) await finalizeExpiredBattle(found.id);
+    } catch (error) {
+      console.error('[battle timeout]', error.message);
+    }
+  }, Math.max(0, deadline - Date.now()) + 250).unref();
+};
+
+const sweepExpiredBattles = async () => {
+  const running = await prisma.battleRoom.findMany({
+    where: { status: 'IN_PROGRESS' },
+    select: { id: true, startedAt: true, durationMs: true },
+  });
+
+  for (const room of running.filter((candidate) => isPastDeadline(candidate))) {
+    await finalizeExpiredBattle(room.id);
+  }
+};
+
+let sweeper = null;
+
+const startBattleSweeper = () => {
+  if (sweeper) return;
+  sweeper = setInterval(() => {
+    sweepExpiredBattles().catch((error) => console.error('[battle sweeper]', error.message));
+  }, SWEEP_INTERVAL_MS);
+  sweeper.unref();
 };
 
 // Explicitly leaving an in-progress battle forfeits it; the opponent wins.
@@ -290,9 +382,13 @@ const getMyBattles = async (userId, { limit = 10 } = {}) => {
 
 module.exports = {
   completeBattle,
+  finalizeExpiredBattle,
   forfeitBattle,
   getMyBattles,
   onBattleSubmissionEvaluated,
+  scheduleBattleTimeout,
+  startBattleSweeper,
+  sweepExpiredBattles,
   tryFinalizeBattle,
   validateBattleSubmission,
 };
