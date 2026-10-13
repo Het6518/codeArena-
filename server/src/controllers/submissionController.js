@@ -1,10 +1,20 @@
 const {
   createSubmission,
   getMyProblemSubmissions,
+  getMyProgress,
   getMySubmissions,
   getSubmissionById,
   runCode,
 } = require('../services/submissionService');
+
+const getMyProgressHandler = async (req, res) => {
+  try {
+    const progress = await getMyProgress(req.user.id);
+    return res.status(200).json({ success: true, ...progress });
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+};
 
 const sendErrorResponse = (res, error) => {
   const statusCode = error.statusCode || 500;
@@ -94,6 +104,7 @@ const getMyProblemSubmissionsHandler = async (req, res) => {
 module.exports = {
   createSubmissionHandler,
   getMyProblemSubmissionsHandler,
+  getMyProgressHandler,
   getMySubmissionsHandler,
   getSubmissionByIdHandler,
   runCodeHandler,

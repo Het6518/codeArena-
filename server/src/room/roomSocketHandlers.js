@@ -89,7 +89,9 @@ const registerRoomHandlers = (io, socket) => {
     }
 
     try {
-      const { room, leftRooms } = await RoomService.createRoom(socket.user.id);
+      const { room, leftRooms } = await RoomService.createRoom(socket.user.id, {
+        difficulty: payload && typeof payload === 'object' ? payload.difficulty : undefined,
+      });
 
       switchSocketRoom(socket, room.roomCode);
 
@@ -134,6 +136,7 @@ const registerRoomHandlers = (io, socket) => {
       await broadcastRoomUpdate(io, result.room);
 
       if (result.started) {
+        BattleService.scheduleBattleTimeout(result.room);
         io.to(result.room.roomCode).emit('battle-start', {
           success: true,
           room: result.room,
@@ -155,6 +158,52 @@ const registerRoomHandlers = (io, socket) => {
 
   socket.on('player-ready', handleReadyChange(true));
   socket.on('player-unready', handleReadyChange(false));
+
+  socket.on('set-difficulty', async (payload, callback) => {
+    try {
+      const room = await RoomService.setDifficulty(
+        socket.user.id,
+        resolveRoomCode(socket, payload),
+        payload && typeof payload === 'object' ? payload.difficulty : undefined
+      );
+
+      await broadcastRoomUpdate(io, room);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, room });
+      }
+    } catch (error) {
+      sendError(socket, 'room-error', error, callback);
+    }
+  });
+
+  socket.on('request-rematch', async (payload, callback) => {
+    try {
+      const finishedRoomCode = resolveRoomCode(socket, payload);
+      const { room, leftRooms, created } = await RoomService.createRematch(socket.user.id, finishedRoomCode);
+      const cleanFinishedCode = RoomService.parseRoomCode(finishedRoomCode);
+
+      // Tell the opponent, who is still subscribed to the finished room's channel.
+      if (created) {
+        socket.to(cleanFinishedCode).emit('rematch-offer', {
+          success: true,
+          roomCode: room.roomCode,
+          fromUserId: socket.user.id,
+        });
+      }
+
+      switchSocketRoom(socket, room.roomCode);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, room });
+      }
+
+      await broadcastRoomUpdate(io, room);
+      await broadcastLeftRooms(io, leftRooms);
+    } catch (error) {
+      sendError(socket, 'room-error', error, callback);
+    }
+  });
 
   socket.on('leave-room', async (payload, callback) => {
     try {
