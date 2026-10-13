@@ -41,9 +41,9 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      eyebrow="Welcome back"
-      title="Log in to CodeArena"
-      description="Continue to your competitive programming workspace."
+      eyebrow="Sign in"
+      title="Back to the arena"
+      description="Pick up your practice or open a room for your next battle."
       footerText="New to CodeArena?"
       footerLinkText="Create an account"
       footerTo="/register"
