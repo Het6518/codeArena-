@@ -64,7 +64,47 @@ const determineBattleOutcome = (submissions, now = Date.now()) => {
   };
 };
 
+// Battles last BATTLE_DURATION_MS from the server's startedAt.
+const BATTLE_DURATION_MS = 30 * 60 * 1000;
+
+const getDeadline = (room) => {
+  if (!room.startedAt) return null;
+  return time(room.startedAt) + (room.durationMs || BATTLE_DURATION_MS);
+};
+
+const isPastDeadline = (room, now = Date.now()) => {
+  const deadline = getDeadline(room);
+  return deadline !== null && now >= deadline;
+};
+
+/**
+ * Outcome once the clock has run out. Submissions received before the deadline still
+ * count: an accepted one wins as usual, and a still-PENDING one is waited for. If nobody
+ * solved it, the battle is a draw by timeout.
+ */
+const determineTimeoutOutcome = (submissions, now = Date.now()) => {
+  const outcome = determineBattleOutcome(submissions, now);
+
+  if (outcome.decided) {
+    return { ...outcome, endReason: outcome.draw ? 'DRAW' : 'SOLVED' };
+  }
+
+  const stillJudging = submissions.some(
+    (submission) => submission.status === 'PENDING' && now - time(submission.createdAt) < STALE_PENDING_MS
+  );
+
+  if (stillJudging) {
+    return { decided: false };
+  }
+
+  return { decided: true, draw: true, winnerId: null, acceptedByUser: {}, endReason: 'TIMEOUT' };
+};
+
 module.exports = {
+  BATTLE_DURATION_MS,
   STALE_PENDING_MS,
   determineBattleOutcome,
+  determineTimeoutOutcome,
+  getDeadline,
+  isPastDeadline,
 };

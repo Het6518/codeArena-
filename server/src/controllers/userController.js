@@ -1,4 +1,4 @@
-const { getLeaderboard } = require('../services/userService');
+const { getLeaderboard, getPublicProfile } = require('../services/userService');
 const { getMyBattles } = require('../battle/battleService');
 
 const sendErrorResponse = (res, error) => {
@@ -37,7 +37,21 @@ const getMyBattlesHandler = async (req, res) => {
   }
 };
 
+const getProfileHandler = async (req, res) => {
+  try {
+    const profile = await getPublicProfile(req.params.username);
+
+    return res.status(200).json({
+      success: true,
+      ...profile,
+    });
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+};
+
 module.exports = {
   getLeaderboardHandler,
   getMyBattlesHandler,
+  getProfileHandler,
 };

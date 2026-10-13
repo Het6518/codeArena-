@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Timer, Trophy, Send, RotateCcw, LogOut, Zap, Code2, ArrowLeft, Swords } from 'lucide-react';
+import { Send, RotateCcw, LogOut, Code2, ArrowLeft, Swords } from 'lucide-react';
 import { Card, Button, Spinner } from '../components/ui';
 import { CodeEditor } from '../components/editor/CodeEditor';
 import { SplitPane } from '../components/layout/SplitPane';
 import { VerdictBadge } from '../components/common/VerdictBadge';
+import { PlayerLink } from '../components/common/PlayerLink';
 import { getSocket, emitWithAck } from '../services/socket';
 import { useAuthStore } from '../store/useAuthStore';
 import { submissionService } from '../services/submissionService';
@@ -23,7 +24,10 @@ const END_REASON_TEXT = {
   SOLVED: 'solved the problem first',
   DRAW: 'Both players solved it at the same moment',
   FORFEIT: 'won by forfeit',
+  TIMEOUT: 'Time ran out before anyone solved it',
 };
+
+const WARNING_WINDOW_MS = 2 * 60 * 1000;
 
 const draftKey = (roomCode) => `codearena_battle_draft_${roomCode}`;
 
@@ -56,6 +60,9 @@ export function BattleRoomArenaPage() {
   const [lastResult, setLastResult] = useState(null);
   const [opponentActivity, setOpponentActivity] = useState(null);
   const [showResults, setShowResults] = useState(true);
+  const [rematchOfferCode, setRematchOfferCode] = useState(null);
+  const [rematchPending, setRematchPending] = useState(false);
+  const [rematchError, setRematchError] = useState(null);
   const submittingRef = useRef(false);
 
   const applyRoom = useCallback((nextRoom) => {
@@ -115,6 +122,14 @@ export function BattleRoomArenaPage() {
       );
     }
 
+    function handleRematchOffer(data) {
+      if (data?.roomCode && data.fromUserId !== user?.id) {
+        setRematchOfferCode(data.roomCode);
+        setShowResults(true);
+      }
+    }
+
+    socket.on('rematch-offer', handleRematchOffer);
     socket.on('player-presence', handlePresence);
     socket.on('room-update', handleRoomUpdate);
     socket.on('battle-end', handleBattleEnd);
@@ -135,6 +150,7 @@ export function BattleRoomArenaPage() {
 
     return () => {
       cancelled = true;
+      socket.off('rematch-offer', handleRematchOffer);
       socket.off('player-presence', handlePresence);
       socket.off('room-update', handleRoomUpdate);
       socket.off('battle-end', handleBattleEnd);
@@ -162,7 +178,28 @@ export function BattleRoomArenaPage() {
 
   const startedAtMs = room?.startedAt ? new Date(room.startedAt).getTime() : null;
   const endMs = isFinished && room?.finishedAt ? new Date(room.finishedAt).getTime() : now + clockOffsetMs;
-  const elapsedMs = startedAtMs ? endMs - startedAtMs : 0;
+  const durationMs = room?.durationMs || 30 * 60 * 1000;
+  const elapsedMs = startedAtMs ? Math.min(endMs - startedAtMs, durationMs) : 0;
+  const remainingMs = Math.max(0, durationMs - elapsedMs);
+  const isTimeUp = Boolean(startedAtMs) && !isFinished && remainingMs === 0;
+  const isWarning = !isFinished && remainingMs > 0 && remainingMs <= WARNING_WINDOW_MS;
+
+  // A rematch lobby exists (from the live offer, or from the room record after a refresh).
+  const offeredRematchCode = rematchOfferCode || room?.rematchCode || null;
+
+  const handleRematch = async () => {
+    if (rematchPending) return;
+    setRematchPending(true);
+    setRematchError(null);
+    try {
+      const response = await emitWithAck('request-rematch', { roomCode });
+      sessionStorage.removeItem(draftKey(roomCode));
+      navigate('/battles', { state: { roomCode: response.room.roomCode } });
+    } catch (error) {
+      setRematchError(error.message);
+      setRematchPending(false);
+    }
+  };
 
   const problem = room?.selectedProblem;
   const me = room?.players?.find((player) => player.id === user?.id);
@@ -184,7 +221,7 @@ export function BattleRoomArenaPage() {
   };
 
   const handleSubmitBattleSolution = async () => {
-    if (!problem?.id || submittingRef.current || room?.status !== 'IN_PROGRESS') return;
+    if (!problem?.id || submittingRef.current || room?.status !== 'IN_PROGRESS' || isTimeUp) return;
 
     submittingRef.current = true;
     setIsSubmitting(true);
@@ -264,20 +301,24 @@ export function BattleRoomArenaPage() {
     <div className="leetcode-workspace animate-fade-in">
       <div className="battle-hud-bar">
         <div className="hud-left">
-          <span className="live-pill">
-            <Zap size={12} /> {isFinished ? 'BATTLE OVER' : 'BATTLE LIVE'}
-          </span>
-          <span className="hud-room-code">Room: {roomCode}</span>
+          <span className={`live-pill${isFinished ? ' ended' : ''}`}>{isFinished ? 'FINAL' : 'LIVE'}</span>
+          <span className="hud-room-code">{roomCode}</span>
         </div>
 
-        <div className="hud-center-timer" title="Elapsed time since the battle started (server time)">
-          <Timer size={18} style={{ color: 'var(--color-accent)' }} />
+        <div
+          className={`hud-center-timer${isFinished || isTimeUp ? ' is-stopped' : ''}${isWarning ? ' is-warning' : ''}`}
+          title="Elapsed time since the battle started (server time)"
+          role="timer"
+          aria-live="off"
+        >
+          <span className="eyebrow">{isFinished ? 'Final' : isTimeUp ? 'Time up' : isWarning ? `${formatElapsed(remainingMs)} left` : 'Elapsed'}</span>
           <span className="timer-text">{formatElapsed(elapsedMs)}</span>
+          <span className="timer-limit">/ {formatElapsed(durationMs)}</span>
         </div>
 
         <div className="hud-right-players">
           <div className="player-badge me">
-            <span className="player-name">You ({user?.username})</span>
+            <span className="player-name">{user?.username} (you)</span>
             <span className={`status-indicator ${me?.solveTimeMs !== null && me?.solveTimeMs !== undefined ? 'solved' : ''}`}>
               {me?.solveTimeMs !== null && me?.solveTimeMs !== undefined ? 'SOLVED' : 'CODING'}
             </span>
@@ -290,7 +331,12 @@ export function BattleRoomArenaPage() {
             <span className={`status-indicator ${opponentStatus.className}`}>{opponentStatus.label}</span>
           </div>
 
-          <Button variant="secondary" size="small" onClick={handleLeaveBattle} style={{ color: 'var(--color-danger)' }}>
+          <Button
+            variant="ghost"
+            size="small"
+            className={isFinished ? undefined : 'button-danger'}
+            onClick={handleLeaveBattle}
+          >
             <LogOut size={14} /> {isFinished ? 'Exit' : 'Forfeit'}
           </Button>
         </div>
@@ -299,17 +345,23 @@ export function BattleRoomArenaPage() {
       {isFinished && showResults && (
         <div className="victory-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="battle-result-title">
           <Card className="victory-card animate-fade-in">
-            <Trophy size={48} style={{ color: 'var(--color-accent)', margin: '0 auto' }} />
-            <h2 id="battle-result-title">{resultTitle}</h2>
-            <p style={{ color: 'var(--color-muted)' }}>
-              {room.endReason === 'DRAW' || !room.winner ? (
-                END_REASON_TEXT.DRAW
-              ) : (
-                <>
-                  <strong>{room.winner.username}</strong> {END_REASON_TEXT[room.endReason] || 'won'}
-                </>
-              )}
-            </p>
+            <div className={`result-banner${resultTitle === 'Victory' ? ' win' : ''}`}>
+              <span className="eyebrow" style={{ color: 'inherit', opacity: 0.7 }}>
+                Room {roomCode} · {formatElapsed(elapsedMs)}
+              </span>
+              <h2 id="battle-result-title">{resultTitle}</h2>
+              <p>
+                {room.endReason === 'TIMEOUT' ? (
+                  END_REASON_TEXT.TIMEOUT
+                ) : room.endReason === 'DRAW' || !room.winner ? (
+                  END_REASON_TEXT.DRAW
+                ) : (
+                  <>
+                    <strong>{room.winner.username}</strong> {END_REASON_TEXT[room.endReason] || 'won'}
+                  </>
+                )}
+              </p>
+            </div>
 
             <table className="battle-result-table">
               <thead>
@@ -328,7 +380,7 @@ export function BattleRoomArenaPage() {
                   return (
                     <tr key={player.id}>
                       <td>
-                        {player.username}
+                        <PlayerLink username={player.username} />
                         {player.id === user?.id ? ' (you)' : ''}
                       </td>
                       <td>{player.solveTimeMs !== null && player.solveTimeMs !== undefined ? formatElapsed(player.solveTimeMs) : '—'}</td>
@@ -348,8 +400,23 @@ export function BattleRoomArenaPage() {
               </tbody>
             </table>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
-              <Button variant="primary" onClick={() => navigate('/battles')}>
+            {offeredRematchCode && (
+              <p className="rematch-offer" role="status">
+                {opponent?.username || 'Your opponent'} wants a rematch.
+              </p>
+            )}
+            {rematchError && (
+              <p className="rematch-offer is-error" role="alert">
+                {rematchError}
+              </p>
+            )}
+
+            <div className="result-actions">
+              <Button variant="primary" onClick={handleRematch} disabled={rematchPending}>
+                {rematchPending ? <Spinner label="Opening rematch" /> : <RotateCcw size={16} />}
+                {offeredRematchCode ? 'Accept rematch' : 'Rematch'}
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/battles')}>
                 Back to Battles
               </Button>
               <Button variant="secondary" onClick={() => navigate('/leaderboard')}>
@@ -503,7 +570,7 @@ export function BattleRoomArenaPage() {
             </div>
 
             <div className="console-actions-bar">
-              <Button variant="primary" onClick={handleSubmitBattleSolution} disabled={isSubmitting || isFinished || !problem}>
+              <Button variant="primary" onClick={handleSubmitBattleSolution} disabled={isSubmitting || isFinished || isTimeUp || !problem}>
                 {isSubmitting ? <Spinner size="small" /> : <Send size={16} />}
                 <span>Submit Solution</span>
               </Button>

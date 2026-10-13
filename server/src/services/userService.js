@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { getMyBattles } = require('../battle/battleService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -91,6 +92,91 @@ const getLeaderboard = async (userId, query = {}) => {
   };
 };
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,30}$/;
+const MAX_HISTORY_POINTS = 100;
+
+/**
+ * Rating over time from finished battles (oldest first). The first point is the rating
+ * before the first battle, then one point per battle.
+ */
+const buildRatingHistory = (rows) => {
+  const played = rows.filter((row) => row.ratingAfter !== null && row.ratingAfter !== undefined);
+  if (!played.length) return [];
+
+  const first = played[0];
+  const history = [{ at: first.startedAt || first.finishedAt, rating: first.ratingBefore ?? first.ratingAfter, roomCode: null }];
+
+  for (const row of played) {
+    history.push({ at: row.finishedAt, rating: row.ratingAfter, roomCode: row.roomCode });
+  }
+
+  return history;
+};
+
+// Public view of a player: never includes email or role.
+const getPublicProfile = async (username) => {
+  if (typeof username !== 'string' || !USERNAME_PATTERN.test(username)) {
+    throw createHttpError('Player not found', 404);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true, username: true, avatar: true, rating: true, wins: true, losses: true, draws: true, createdAt: true },
+  });
+
+  if (!user) {
+    throw createHttpError('Player not found', 404);
+  }
+
+  const [historyRows, solvedRows, recentBattles] = await Promise.all([
+    prisma.battleRoomPlayer.findMany({
+      where: { userId: user.id, room: { status: 'FINISHED' } },
+      orderBy: { room: { finishedAt: 'desc' } },
+      take: MAX_HISTORY_POINTS,
+      select: {
+        ratingBefore: true,
+        ratingAfter: true,
+        room: { select: { roomCode: true, startedAt: true, finishedAt: true } },
+      },
+    }),
+    prisma.submission.findMany({
+      where: { userId: user.id, status: 'ACCEPTED' },
+      distinct: ['problemId'],
+      select: { problem: { select: { difficulty: true } } },
+    }),
+    getMyBattles(user.id, { limit: 10 }),
+  ]);
+
+  const solved = { EASY: 0, MEDIUM: 0, HARD: 0, total: solvedRows.length };
+  solvedRows.forEach((row) => {
+    if (row.problem) solved[row.problem.difficulty] += 1;
+  });
+
+  const games = user.wins + user.losses + user.draws;
+
+  return {
+    user: {
+      ...toLeaderboardEntry(user, games ? await getRankForRating(user.rating) : null),
+      joinedAt: user.createdAt,
+    },
+    ratingHistory: buildRatingHistory(
+      historyRows
+        .map((row) => ({
+          ratingBefore: row.ratingBefore,
+          ratingAfter: row.ratingAfter,
+          roomCode: row.room.roomCode,
+          startedAt: row.room.startedAt,
+          finishedAt: row.room.finishedAt,
+        }))
+        .reverse()
+    ),
+    solved,
+    recentBattles,
+  };
+};
+
 module.exports = {
+  buildRatingHistory,
   getLeaderboard,
+  getPublicProfile,
 };

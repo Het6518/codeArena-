@@ -6,6 +6,12 @@ const variants = {
   ghost: 'button button-ghost',
 };
 
-export function Button({ className, variant = 'primary', type = 'button', ...props }) {
-  return <button type={type} className={cn(variants[variant], className)} {...props} />;
+const sizes = {
+  small: 'button-small',
+  medium: '',
+  large: 'button-large',
+};
+
+export function Button({ className, variant = 'primary', size = 'medium', type = 'button', ...props }) {
+  return <button type={type} className={cn(variants[variant], sizes[size], className)} {...props} />;
 }

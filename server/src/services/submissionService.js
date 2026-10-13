@@ -316,7 +316,25 @@ const getMyProblemSubmissions = async (userId, problemId) => {
   });
 };
 
+// Which problems the user has solved, and which they tried without solving.
+const getMyProgress = async (userId) => {
+  const rows = await prisma.submission.findMany({
+    where: { userId },
+    distinct: ['problemId', 'status'],
+    select: { problemId: true, status: true },
+  });
+
+  const solved = new Set(rows.filter((row) => row.status === 'ACCEPTED').map((row) => row.problemId));
+  const attempted = new Set(rows.map((row) => row.problemId).filter((problemId) => !solved.has(problemId)));
+
+  return {
+    solvedProblemIds: [...solved],
+    attemptedProblemIds: [...attempted],
+  };
+};
+
 module.exports = {
+  getMyProgress,
   createSubmission,
   getMyProblemSubmissions,
   getMySubmissions,

@@ -7,6 +7,7 @@ import { ProblemWorkspacePage } from '../pages/ProblemWorkspacePage';
 import { BattlesPage } from '../pages/BattlesPage';
 import { BattleRoomArenaPage } from '../pages/BattleRoomArenaPage';
 import { LeaderboardPage } from '../pages/LeaderboardPage';
+import { ProfilePage } from '../pages/ProfilePage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { RegisterPage } from '../features/auth/pages/RegisterPage';
@@ -55,6 +56,10 @@ const router = createBrowserRouter([
       {
         path: '/leaderboard',
         element: <LeaderboardPage />,
+      },
+      {
+        path: '/u/:username',
+        element: <ProfilePage />,
       },
       {
         path: '/settings',

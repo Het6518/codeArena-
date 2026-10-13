@@ -23,6 +23,21 @@ const generateRoomCode = () => {
   return code;
 };
 
+const DIFFICULTIES = ['EASY', 'MEDIUM', 'HARD'];
+
+// Client sends EASY / MEDIUM / HARD, or nothing / "RANDOM" for any difficulty.
+const parseDifficulty = (value) => {
+  if (value === undefined || value === null || value === '' || value === 'RANDOM') {
+    return null;
+  }
+
+  if (typeof value !== 'string' || !DIFFICULTIES.includes(value.toUpperCase())) {
+    throw createSocketError('Difficulty must be Random, Easy, Medium or Hard');
+  }
+
+  return value.toUpperCase();
+};
+
 // Normalizes and validates a client supplied room code.
 const parseRoomCode = (roomCode) => {
   if (!roomCode || typeof roomCode !== 'string') {
@@ -100,9 +115,13 @@ class RoomService {
             avatar: room.host.avatar,
           }
         : null,
+      difficulty: room.difficulty || null,
+      durationMs: room.durationMs,
       startedAt: room.startedAt,
+      endsAt: room.startedAt ? new Date(room.startedAt.getTime() + room.durationMs).toISOString() : null,
       finishedAt: room.finishedAt,
       endReason: room.endReason,
+      rematchCode: room.rematchCode || null,
       winner: room.winner ? { id: room.winner.id, username: room.winner.username } : null,
       // Lets clients compute their clock offset so the stopwatch follows server time.
       serverTime: new Date().toISOString(),
@@ -200,7 +219,8 @@ class RoomService {
     return results;
   }
 
-  static async createRoom(userId) {
+  static async createRoom(userId, { difficulty } = {}) {
+    const cleanDifficulty = parseDifficulty(difficulty);
     const leftRooms = await RoomService.leaveOtherWaitingRooms(userId);
     const roomCode = await RoomService.createUniqueRoomCode();
 
@@ -209,6 +229,7 @@ class RoomService {
         roomCode,
         hostId: userId,
         status: 'WAITING',
+        difficulty: cleanDifficulty,
         players: {
           create: {
             userId,
@@ -338,7 +359,7 @@ class RoomService {
       };
     }
 
-    const selectedProblem = await RoomService.getRandomProblem();
+    const selectedProblem = await RoomService.getRandomProblem(latestRoom.difficulty);
     const startedAt = new Date();
 
     // Conditional update: if both players click ready at the same moment, only one request
@@ -364,10 +385,107 @@ class RoomService {
     };
   }
 
+  // Only the host may change difficulty, only in the lobby. Both players must ready up again
+  // so nobody starts a battle on a difficulty they did not agree to.
+  static async setDifficulty(userId, roomCode, difficulty) {
+    const cleanRoomCode = parseRoomCode(roomCode);
+    const cleanDifficulty = parseDifficulty(difficulty);
+
+    const room = await prisma.battleRoom.findUnique({
+      where: { roomCode: cleanRoomCode },
+      select: { id: true, status: true, hostId: true },
+    });
+
+    if (!room) {
+      throw createSocketError('Room not found');
+    }
+
+    if (room.hostId !== userId) {
+      throw createSocketError('Only the host can change the difficulty');
+    }
+
+    if (room.status !== 'WAITING') {
+      throw createSocketError('Difficulty can only be changed before the battle starts');
+    }
+
+    await prisma.$transaction([
+      prisma.battleRoom.update({ where: { id: room.id }, data: { difficulty: cleanDifficulty } }),
+      prisma.battleRoomPlayer.updateMany({ where: { roomId: room.id }, data: { ready: false } }),
+    ]);
+
+    const updatedRoom = await RoomService.getRoomByCode(cleanRoomCode);
+    return RoomService.serializeRoom(updatedRoom);
+  }
+
+  /**
+   * Creates (or returns) the lobby for a rematch of a finished battle. The first player to ask
+   * creates it; the code is stored on the finished room with a compare-and-set, so if both
+   * players click at once they still end up in the same lobby.
+   */
+  static async createRematch(userId, roomCode) {
+    const cleanRoomCode = parseRoomCode(roomCode);
+
+    const finished = await prisma.battleRoom.findUnique({
+      where: { roomCode: cleanRoomCode },
+      select: {
+        id: true,
+        status: true,
+        difficulty: true,
+        rematchCode: true,
+        players: { select: { userId: true } },
+      },
+    });
+
+    if (!finished) {
+      throw createSocketError('Room not found');
+    }
+
+    if (!finished.players.some((player) => player.userId === userId)) {
+      throw createSocketError('You did not play in this battle');
+    }
+
+    if (finished.status !== 'FINISHED') {
+      throw createSocketError('A rematch is only available after the battle ends');
+    }
+
+    // Someone already asked: join that lobby if it is still open.
+    if (finished.rematchCode) {
+      const existingStatus = await RoomService.getRoomStatus(finished.rematchCode);
+      if (existingStatus === 'WAITING') {
+        const joined = await RoomService.joinRoom(userId, finished.rematchCode);
+        return { ...joined, finishedRoomCode: cleanRoomCode, created: false };
+      }
+    }
+
+    const created = await RoomService.createRoom(userId, { difficulty: finished.difficulty });
+
+    const { count } = await prisma.battleRoom.updateMany({
+      where: {
+        id: finished.id,
+        OR: [{ rematchCode: null }, { rematchCode: finished.rematchCode }],
+      },
+      data: { rematchCode: created.room.roomCode },
+    });
+
+    if (count === 0) {
+      // The opponent won the race: drop our lobby and join theirs.
+      await RoomService.leaveRoom(userId, created.room.roomCode);
+      const { rematchCode } = await prisma.battleRoom.findUnique({
+        where: { id: finished.id },
+        select: { rematchCode: true },
+      });
+      const joined = await RoomService.joinRoom(userId, rematchCode);
+      return { ...joined, finishedRoomCode: cleanRoomCode, created: false };
+    }
+
+    return { ...created, finishedRoomCode: cleanRoomCode, created: true };
+  }
+
   // Only published problems that actually have test cases can be judged.
-  static async getRandomProblem() {
+  static async getRandomProblem(difficulty = null) {
     const where = {
       isPublished: true,
+      ...(difficulty ? { difficulty } : {}),
       testCases: {
         some: {},
       },
@@ -376,7 +494,9 @@ class RoomService {
     const problemCount = await prisma.problem.count({ where });
 
     if (problemCount === 0) {
-      throw createSocketError('No published problems are available');
+      throw createSocketError(
+        difficulty ? `No published ${difficulty.toLowerCase()} problems are available` : 'No published problems are available'
+      );
     }
 
     const skip = crypto.randomInt(problemCount);
@@ -490,6 +610,7 @@ class RoomService {
 }
 
 RoomService.parseRoomCode = parseRoomCode;
+RoomService.parseDifficulty = parseDifficulty;
 RoomService.MAX_PLAYERS_PER_ROOM = MAX_PLAYERS_PER_ROOM;
 
 module.exports = RoomService;

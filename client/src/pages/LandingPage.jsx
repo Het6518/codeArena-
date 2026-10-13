@@ -1,43 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  Clock3,
-  Code2,
-  Gauge,
-  PanelsTopLeft,
-  Scale,
-  Swords,
-  Timer,
-  Trophy,
-  Zap,
-} from 'lucide-react';
+import { ArrowRight, Clock3, Code2, PanelsTopLeft, Scale, Trophy } from 'lucide-react';
 import { Button } from '../components/ui';
+import { Logo } from '../components/common/Logo';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 import { VerdictBadge } from '../components/common/VerdictBadge';
 import { useAuthStore } from '../store/useAuthStore';
 import { problemService } from '../services/problemService';
 
 const STEPS = [
-  {
-    title: 'Create a room',
-    text: 'Get a six-character room code and send it to your opponent.',
-  },
-  {
-    title: 'Ready up',
-    text: 'When both players are ready, the server picks a random problem and starts the clock.',
-  },
-  {
-    title: 'Solve',
-    text: 'Write in JavaScript, Python, C++ or Java. Run against the samples as often as you like.',
-  },
+  { title: 'Create a room', text: 'You get a six-character code. Send it to your opponent.' },
+  { title: 'Ready up', text: 'When both players are ready, the server picks a random problem and starts the clock.' },
+  { title: 'Solve', text: 'Write in JavaScript, Python, C++ or Java. Run against the samples as often as you like.' },
   {
     title: 'Submit',
-    text: 'Every submission is judged against all tests, hidden ones included. The first accepted submission the server receives wins.',
+    text: 'Each submission is judged against every test, hidden ones included. The first accepted one the server receives wins.',
   },
 ];
 
-const FEATURES = [
+const SPECS = [
   {
     icon: Code2,
     title: 'Practice library',
@@ -46,17 +27,17 @@ const FEATURES = [
   {
     icon: Scale,
     title: 'Judged by the server',
-    text: 'Battles are decided by when the server received each accepted submission, not by whose result came back first. A simultaneous solve is a draw.',
+    text: 'Results are decided by when the server received each accepted submission, not by whose result came back first. A same-millisecond solve is a draw.',
   },
   {
     icon: Trophy,
     title: 'Elo ratings',
-    text: 'Everyone starts at 1200. Beating a stronger player earns more than beating a weaker one, and the leaderboard updates the moment a battle ends.',
+    text: 'Everyone starts at 1200. An upset earns more than an expected win, and the leaderboard updates the moment a battle ends.',
   },
   {
     icon: PanelsTopLeft,
-    title: 'A real editor',
-    text: 'Monaco, the editor inside VS Code, with problem, editor and console panels you can drag to the size you like.',
+    title: 'A proper editor',
+    text: 'Monaco, the editor inside VS Code, with problem, editor and console panels you can drag to any size.',
   },
 ];
 
@@ -89,16 +70,10 @@ export function LandingPage() {
     };
   }, []);
 
-  const primaryCta = isAuthenticated ? (
-    <Link to="/dashboard">
-      <Button variant="primary">
-        Open dashboard <ArrowRight size={16} />
-      </Button>
-    </Link>
-  ) : (
-    <Link to="/register">
-      <Button variant="primary">
-        Create a free account <ArrowRight size={16} />
+  const primaryCta = (
+    <Link to={isAuthenticated ? '/dashboard' : '/register'}>
+      <Button variant="primary" size="large">
+        {isAuthenticated ? 'Open dashboard' : 'Create a free account'} <ArrowRight size={16} />
       </Button>
     </Link>
   );
@@ -106,10 +81,8 @@ export function LandingPage() {
   return (
     <div className="landing">
       <header className="landing-header">
-        <Link to="/" className="navbar-logo-link" aria-label="CodeArena home">
-          <span className="brand-title">
-            Code<span className="brand-highlight">Arena</span>
-          </span>
+        <Link to="/" aria-label="CodeArena home">
+          <Logo />
         </Link>
 
         <nav className="landing-header-links" aria-label="Page sections">
@@ -139,13 +112,12 @@ export function LandingPage() {
       <main>
         <section className="landing-hero">
           <div className="landing-hero-copy">
-            {/* <p className="landing-eyebrow"> */}
-              {/* <Swords size={14} /> 1v1 competitive programming */}
-            {/* </p> */}
             <h1>
-              Same problem. Same clock.
+              Same problem.
               <br />
-              <span className="brand-highlight">First accepted wins.</span>
+              Same clock.
+              <br />
+              <mark>First accepted wins.</mark>
             </h1>
             <p className="landing-lede">
               Open a private room, share the code with a friend, and race through the same Codeforces problem. Every
@@ -154,53 +126,54 @@ export function LandingPage() {
             <div className="landing-cta-row">
               {primaryCta}
               <Link to={isAuthenticated ? '/problems' : '/login'}>
-                <Button variant="secondary">{isAuthenticated ? 'Browse problems' : 'Sign in'}</Button>
+                <Button variant="secondary" size="large">
+                  {isAuthenticated ? 'Browse problems' : 'Sign in'}
+                </Button>
               </Link>
             </div>
             <ul className="landing-facts" aria-label="Platform facts">
               <li>
-                <Code2 size={15} />
-                {problemCount === null ? 'Codeforces problem library' : `${problemCount} problems to practice`}
+                <strong>{problemCount ?? '—'}</strong>
+                <span>problems to practice</span>
               </li>
               <li>
-                <Zap size={15} /> JavaScript · Python · C++ · Java
+                <strong>4</strong>
+                <span>languages</span>
               </li>
               <li>
-                <Gauge size={15} /> Elo rated, starting at 1200
+                <strong>1200</strong>
+                <span>starting rating</span>
               </li>
             </ul>
           </div>
 
-          <figure className="arena-preview" aria-label="Preview of the battle arena">
-            <div className="arena-preview-hud">
-              <span className="live-pill">
-                <Zap size={12} /> BATTLE LIVE
-              </span>
-              <span className="arena-preview-timer">
-                <Timer size={15} /> 04:37
-              </span>
-              <span className="arena-preview-room">Room K7Q2MX</span>
-            </div>
-
-            <div className="arena-preview-players">
-              <div className="arena-preview-player me">
-                <span>You</span>
-                <span className="status-indicator solved">SOLVED</span>
+          <figure className="device" aria-label="Preview of a battle">
+            <div className="device-clock">
+              <div className="device-buttons" aria-hidden="true">
+                <span />
+                <span />
               </div>
-              <span className="vs-divider">VS</span>
-              <div className="arena-preview-player">
-                <span>rival_dev</span>
-                <span className="status-indicator">WRONG ANSWER</span>
+              <div className="device-faces">
+                <div className="device-face running">
+                  <span className="device-face-name">You</span>
+                  <span className="device-face-time">04:37</span>
+                  <span className="device-face-state">SOLVED</span>
+                </div>
+                <div className="device-face">
+                  <span className="device-face-name">rival_dev</span>
+                  <span className="device-face-time">04:37</span>
+                  <span className="device-face-state">WRONG ANSWER ON TEST 3</span>
+                </div>
               </div>
             </div>
 
-            <div className="arena-preview-body">
-              <div className="arena-preview-problem">
-                <span className="difficulty-badge easy">EASY</span>
+            <div className="device-card">
+              <div className="device-card-head">
+                <span className="difficulty-badge easy">Easy</span>
                 <strong>Vova and Train</strong>
-                <span className="arena-preview-source">Codeforces 1066A</span>
+                <span className="muted">CF 1066A · C++</span>
               </div>
-              <pre className="arena-preview-code" aria-label="Example C++ solution">
+              <pre className="device-code" aria-label="Example C++ solution">
                 {PREVIEW_CODE.map(([kind, text], index) =>
                   kind ? (
                     <span key={index} className={`tok-${kind}`}>
@@ -211,28 +184,27 @@ export function LandingPage() {
                   )
                 )}
               </pre>
+              <div className="device-verdict">
+                <VerdictBadge status="ACCEPTED" compact />
+                <span>6/6 tests passed</span>
+                <span className="metric-tag">
+                  <Clock3 size={13} /> 42 ms
+                </span>
+              </div>
             </div>
-
-            <div className="arena-preview-verdict">
-              <VerdictBadge status="ACCEPTED" compact />
-              <span>6/6 tests passed</span>
-              <span className="arena-preview-metric">
-                <Clock3 size={13} /> 42 ms
-              </span>
-            </div>
-            <figcaption>Example battle. Times and names are illustrative.</figcaption>
+            <figcaption className="device-caption">Example battle. Names and times are illustrative.</figcaption>
           </figure>
         </section>
 
         <section className="landing-section" id="how-it-works" aria-labelledby="how-title">
           <div className="landing-section-head">
-            <h2 id="how-title">How a battle works</h2>
+            <h2 id="how-title">How a battle runs</h2>
             <p>From room code to rating change in four steps.</p>
           </div>
           <ol className="landing-steps">
             {STEPS.map((step, index) => (
               <li key={step.title}>
-                <span className="landing-step-number">{index + 1}</span>
+                <span className="landing-step-number">{String(index + 1).padStart(2, '0')}</span>
                 <h3>{step.title}</h3>
                 <p>{step.text}</p>
               </li>
@@ -242,24 +214,22 @@ export function LandingPage() {
 
         <section className="landing-section" id="features" aria-labelledby="features-title">
           <div className="landing-section-head">
-            <h2 id="features-title">Built for fair, fast duels</h2>
+            <h2 id="features-title">Built for fair duels</h2>
             <p>Everything that decides a result happens on the server.</p>
           </div>
-          <div className="landing-features">
-            {FEATURES.map(({ icon: Icon, title, text }) => (
-              <article key={title} className="landing-feature">
-                <span className="landing-feature-icon">
-                  <Icon size={18} />
-                </span>
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="landing-verdicts">
-            <span className="landing-verdicts-label">Verdicts you will see</span>
-            <div className="landing-verdicts-list">
+          <div>
+            <dl className="spec-list">
+              {SPECS.map(({ icon: Icon, title, text }) => (
+                <div key={title} className="spec-row">
+                  <dt>
+                    <Icon size={17} /> {title}
+                  </dt>
+                  <dd>{text}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="landing-verdicts" aria-label="Verdicts the judge returns">
+              <span className="eyebrow">Verdicts</span>
               {VERDICTS.map((status) => (
                 <VerdictBadge key={status} status={status} compact />
               ))}
@@ -269,17 +239,15 @@ export function LandingPage() {
 
         <section className="landing-cta-band" aria-labelledby="cta-title">
           <div>
-            <h2 id="cta-title">Challenge someone today.</h2>
-            <p>Create a room, send the code, and see who solves it first.</p>
+            <h2 id="cta-title">Your move.</h2>
+            <p>Create a room, send the code, and find out who solves it first.</p>
           </div>
           {primaryCta}
         </section>
       </main>
 
       <footer className="landing-footer">
-        <span>
-          Code<span className="brand-highlight">Arena</span>
-        </span>
+        <Logo compact />
         <span>Problems from Codeforces via DeepMind CodeContests (CC BY 4.0).</span>
       </footer>
     </div>

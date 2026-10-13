@@ -37,8 +37,8 @@ export function RegisterPage() {
   return (
     <AuthLayout
       eyebrow="Create account"
-      title="Join CodeArena"
-      description="Create your developer profile and prepare for real-time coding battles."
+      title="Claim your handle"
+      description="Your handle is what opponents see. Everyone starts at a 1200 rating."
       footerText="Already have an account?"
       footerLinkText="Log in"
       footerTo="/login"

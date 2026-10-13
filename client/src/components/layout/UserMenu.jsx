@@ -77,13 +77,13 @@ export function UserMenu() {
 
           <div className="user-menu-links">
             <Link
-              to="/settings"
+              to={user?.username ? `/u/${encodeURIComponent(user.username)}` : '/settings'}
               className="user-menu-item"
               onClick={() => setIsOpen(false)}
               role="menuitem"
             >
               <User size={16} />
-              <span>Profile Details</span>
+              <span>Your profile</span>
             </Link>
             <Link
               to="/settings"
@@ -92,7 +92,7 @@ export function UserMenu() {
               role="menuitem"
             >
               <Settings size={16} />
-              <span>Preferences</span>
+              <span>Settings</span>
             </Link>
           </div>
 

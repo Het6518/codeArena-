@@ -3,6 +3,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const createRateLimiter = require('../middleware/rateLimit');
 const {
   createSubmissionHandler,
+  getMyProgressHandler,
   getMySubmissionsHandler,
   getSubmissionByIdHandler,
   runCodeHandler,
@@ -23,6 +24,7 @@ router.use(authMiddleware);
 router.post('/', executionLimiter, createSubmissionHandler);
 router.post('/run', executionLimiter, runCodeHandler);
 router.get('/me', getMySubmissionsHandler);
+router.get('/me/progress', getMyProgressHandler);
 router.get('/:id', getSubmissionByIdHandler);
 
 module.exports = router;
