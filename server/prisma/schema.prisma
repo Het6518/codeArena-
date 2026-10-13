@@ -111,8 +111,13 @@ model BattleRoom {
   finishedAt        DateTime?
   winnerId          String?
   endReason         BattleEndReason?
+  // null = any difficulty
+  difficulty        ProblemDifficulty?
+  durationMs        Int                @default(1800000)
+  // Code of the lobby created by "Rematch" after this battle, so both players land in one room.
+  rematchCode       String?
 
-  host              User               @relation("BattleRoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+  host             User               @relation("BattleRoomHost", fields: [hostId], references: [id], onDelete: Cascade)
   selectedProblem   Problem?           @relation(fields: [selectedProblemId], references: [id], onDelete: SetNull)
   winner            User?              @relation("BattleRoomWinner", fields: [winnerId], references: [id], onDelete: SetNull)
   players           BattleRoomPlayer[]
@@ -182,4 +187,5 @@ enum BattleEndReason {
   SOLVED
   DRAW
   FORFEIT
+  TIMEOUT
 }

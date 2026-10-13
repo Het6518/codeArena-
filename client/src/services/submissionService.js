@@ -11,6 +11,11 @@ export const submissionService = {
     return response.data;
   },
 
+  async getMyProgress() {
+    const response = await api.get('/submissions/me/progress');
+    return response.data;
+  },
+
   async getMySubmissions(params) {
     const response = await api.get('/submissions/me', { params });
     return response.data;

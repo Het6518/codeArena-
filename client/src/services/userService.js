@@ -10,4 +10,9 @@ export const userService = {
     const response = await api.get('/users/me/battles', { params });
     return response.data;
   },
+
+  async getProfile(username) {
+    const response = await api.get(`/users/${encodeURIComponent(username)}/profile`);
+    return response.data;
+  },
 };
