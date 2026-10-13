@@ -1,24 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Swords, Trophy } from 'lucide-react';
-import { Card, Button, Spinner } from '../components/ui';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Swords } from 'lucide-react';
+import { Button, Spinner } from '../components/ui';
 import { useAuthStore } from '../store/useAuthStore';
 import { problemService } from '../services/problemService';
 import { userService } from '../services/userService';
-import { Link } from 'react-router-dom';
+import { submissionService } from '../services/submissionService';
+import { PlayerLink } from '../components/common/PlayerLink';
+
+const DIFFICULTIES = ['EASY', 'MEDIUM', 'HARD'];
 
 const formatDuration = (ms) => {
-  if (ms === null || ms === undefined) return null;
+  if (ms === null || ms === undefined) return '—';
   const totalSeconds = Math.floor(ms / 1000);
-  return `${Math.floor(totalSeconds / 60)}m ${String(totalSeconds % 60).padStart(2, '0')}s`;
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 };
+
+const RESULT_LETTER = { WIN: 'W', LOSS: 'L', DRAW: 'D' };
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const refreshUser = useAuthStore((state) => state.refreshUser);
-  const username = user?.username || 'Developer';
 
   const [problems, setProblems] = useState([]);
   const [battles, setBattles] = useState([]);
+  const [rank, setRank] = useState(null);
+  const [solvedIds, setSolvedIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -29,147 +36,210 @@ export function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDashboardData() {
+    async function load() {
       try {
         setLoading(true);
-        const [problemData, battleData] = await Promise.all([
+        const [problemData, battleData, leaderboard, progress] = await Promise.all([
           problemService.getProblems(),
-          userService.getMyBattles({ limit: 5 }),
+          userService.getMyBattles({ limit: 6 }),
+          userService.getLeaderboard({ limit: 1 }),
+          submissionService.getMyProgress().catch(() => null),
         ]);
         if (cancelled) return;
         setProblems(problemData.problems || []);
+        setSolvedIds(new Set(progress?.solvedProblemIds || []));
         setBattles(battleData.battles || []);
+        setRank(leaderboard.me?.rank ?? null);
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Failed to load dashboard data');
+        if (!cancelled) setError(err.message || 'Failed to load your dashboard');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    loadDashboardData();
+    load();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const recommendedProblem = problems[0];
-  const games = (user?.wins || 0) + (user?.losses || 0) + (user?.draws || 0);
+  const wins = user?.wins || 0;
+  const losses = user?.losses || 0;
+  const draws = user?.draws || 0;
+  const games = wins + losses + draws;
+  const share = (count) => (games ? `${(count / games) * 100}%` : '0%');
+
+  // One unsolved problem per difficulty.
+  const upNext = DIFFICULTIES.map((difficulty) =>
+    problems.find((problem) => problem.difficulty === difficulty && !solvedIds.has(problem.id))
+  ).filter(Boolean);
 
   return (
-    <div className="dashboard-view animate-fade-in">
+    <div className="page-view animate-fade-in">
       <header className="page-header">
         <div>
-          <h1 className="page-title">Welcome back, {username}</h1>
-          <p className="page-subtitle">Practice problems and challenge rivals in real-time 1v1 battles.</p>
+          <h1 className="page-title">{user?.username ? `Hi, ${user.username}` : 'Dashboard'}</h1>
+          <p className="page-subtitle">Your record, your recent battles, and something to solve next.</p>
         </div>
         <div className="header-actions">
           <Link to="/battles">
             <Button variant="primary">
-              <Swords size={16} />
-              <span>New Battle</span>
+              <Swords size={16} /> New battle
             </Button>
           </Link>
         </div>
       </header>
 
       {error && (
-        <Card style={{ borderLeft: '4px solid var(--color-danger)', marginBottom: '16px' }}>
-          <p style={{ color: 'var(--color-danger)' }}>{error}</p>
-        </Card>
+        <p className="notice" role="alert">
+          {error}
+        </p>
       )}
 
-      <div className="stats-grid">
-        <Card className="stat-card">
-          <div className="stat-info">
-            <span className="stat-label">Rating</span>
-            <span className="stat-value">{user?.rating ?? '—'}</span>
-          </div>
-        </Card>
-
-        <Card className="stat-card">
-          <div className="stat-info">
-            <span className="stat-label">Battles (W / L / D)</span>
-            <span className="stat-value">
-              {games ? `${user.wins} / ${user.losses} / ${user.draws}` : 'None yet'}
-            </span>
-          </div>
-        </Card>
-
-        <Card className="stat-card">
-          <div className="stat-info">
-            <span className="stat-label">Available Problems</span>
-            <span className="stat-value">{loading ? '...' : problems.length}</span>
-          </div>
-        </Card>
-      </div>
-
-      <div className="dashboard-content-grid">
-        <Card className="content-card">
-          <div className="card-title-row">
-            <h2>Recommended Problem</h2>
-            {recommendedProblem && (
-              <span className={`difficulty-badge ${recommendedProblem.difficulty?.toLowerCase()}`}>
-                {recommendedProblem.difficulty}
+      <div className="dash-grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+          <section className="panel record-card" aria-label="Your record">
+            <div className="record-rating">
+              <span className="eyebrow">Rating</span>
+              <span className="record-rating-value">{user?.rating ?? '—'}</span>
+              <span className="record-rank">
+                {rank ? (
+                  <>
+                    Rank <strong>#{rank}</strong>
+                  </>
+                ) : (
+                  'Unranked until your first battle'
+                )}
               </span>
-            )}
-          </div>
-          {loading ? (
-            <Spinner label="Loading problems" />
-          ) : recommendedProblem ? (
-            <>
-              <p className="problem-title">{recommendedProblem.title}</p>
-              <p className="problem-desc line-clamp">{recommendedProblem.description}</p>
-              <div className="card-footer-action">
-                <Link to={`/problems/${recommendedProblem.slug}`}>
+            </div>
+
+            <div className="record-tally">
+              <span className="eyebrow">Record · {games} {games === 1 ? 'battle' : 'battles'}</span>
+              <div className="tally-bar" role="img" aria-label={`${wins} wins, ${losses} losses, ${draws} draws`}>
+                <span className="t-win" style={{ width: share(wins) }} />
+                <span className="t-loss" style={{ width: share(losses) }} />
+                <span className="t-draw" style={{ width: share(draws) }} />
+              </div>
+              <div className="tally-legend">
+                <span>
+                  <strong>{wins}</strong>W
+                </span>
+                <span>
+                  <strong>{losses}</strong>L
+                </span>
+                <span>
+                  <strong>{draws}</strong>D
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel" aria-labelledby="recent-title">
+            <div className="panel-head">
+              <h2 id="recent-title" className="section-title">
+                Recent battles
+              </h2>
+              <Link to="/leaderboard">
+                <Button variant="ghost" size="small">
+                  Leaderboard <ArrowRight size={14} />
+                </Button>
+              </Link>
+            </div>
+            {loading ? (
+              <div className="placeholder-content">
+                <Spinner label="Loading battles" />
+              </div>
+            ) : battles.length === 0 ? (
+              <div className="placeholder-content">
+                <p>No finished battles yet. Open a room and send the code to a friend.</p>
+                <Link to="/battles">
                   <Button variant="secondary" size="small">
-                    Solve Problem
+                    Start a battle
                   </Button>
                 </Link>
               </div>
-            </>
-          ) : (
-            <p className="problem-desc">No published problems yet.</p>
-          )}
-        </Card>
+            ) : (
+              <div className="sheet-table-wrap">
+                <table className="sheet-table">
+                  <thead>
+                    <tr>
+                      <th aria-label="Result" />
+                      <th>Opponent</th>
+                      <th>Problem</th>
+                      <th className="numeric">Solve</th>
+                      <th className="numeric">Rating</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {battles.map((battle) => (
+                      <tr key={battle.roomCode} className="battle-log-row">
+                        <td>
+                          <span className={`result-pill ${battle.result.toLowerCase()}`} title={battle.result}>
+                            {RESULT_LETTER[battle.result]}
+                          </span>
+                        </td>
+                        <td>
+                          <PlayerLink username={battle.opponent?.username} />
+                          {battle.endReason === 'FORFEIT' && <span className="muted"> · forfeit</span>}
+                        </td>
+                        <td className="muted">{battle.problem?.title || 'Problem removed'}</td>
+                        <td className="numeric">{formatDuration(battle.solveTimeMs)}</td>
+                        <td className="numeric">
+                          {battle.ratingChange === null ? (
+                            '—'
+                          ) : (
+                            <span className={`rating-delta ${battle.ratingChange >= 0 ? 'positive' : 'negative'}`}>
+                              {battle.ratingChange >= 0 ? '+' : ''}
+                              {battle.ratingChange}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
 
-        <Card className="content-card">
-          <div className="card-title-row">
-            <h2>Recent Battles</h2>
-            <Link to="/leaderboard">
-              <Button variant="ghost" size="small">
-                <Trophy size={14} /> Leaderboard
-              </Button>
-            </Link>
+        <section className="panel" aria-labelledby="next-title">
+          <div className="panel-head">
+            <h2 id="next-title" className="section-title">
+              Up next
+            </h2>
+            <span className="eyebrow">
+              {solvedIds.size} / {problems.length} solved
+            </span>
           </div>
           {loading ? (
-            <Spinner label="Loading battles" />
-          ) : battles.length === 0 ? (
-            <p className="problem-desc">You have not finished a battle yet.</p>
+            <div className="placeholder-content">
+              <Spinner label="Loading problems" />
+            </div>
+          ) : upNext.length === 0 ? (
+            <div className="placeholder-content">
+              <p>{problems.length ? 'You have solved every problem. Nice.' : 'No published problems yet.'}</p>
+            </div>
           ) : (
-            <ul className="recent-battles-list">
-              {battles.map((battle) => (
-                <li key={battle.roomCode}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <span className={`result-pill ${battle.result.toLowerCase()}`}>{battle.result}</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      vs {battle.opponent?.username || 'unknown'} · {battle.problem?.title || 'Problem removed'}
-                      {battle.endReason === 'FORFEIT' ? ' · forfeit' : ''}
-                    </span>
-                  </div>
-                  <span style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                    {formatDuration(battle.solveTimeMs) ? `${formatDuration(battle.solveTimeMs)} · ` : ''}
-                    {battle.ratingChange !== null && (
-                      <span className={`rating-delta ${battle.ratingChange >= 0 ? 'positive' : 'negative'}`}>
-                        {battle.ratingChange >= 0 ? '+' : ''}
-                        {battle.ratingChange}
-                      </span>
-                    )}
-                  </span>
+            <ul className="up-next-list">
+              {upNext.map((problem) => (
+                <li key={problem.id}>
+                  <Link to={`/problems/${problem.slug}`}>
+                    <span className="up-next-title">{problem.title}</span>
+                    <span className={`difficulty-badge ${problem.difficulty.toLowerCase()}`}>{problem.difficulty}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
+          <div className="panel-body" style={{ borderTop: '1px solid var(--rule)' }}>
+            <Link to="/problems">
+              <Button variant="secondary" size="small">
+                All problems <ArrowRight size={14} />
+              </Button>
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

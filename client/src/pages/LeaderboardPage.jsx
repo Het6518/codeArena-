@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, ChevronLeft, ChevronRight, Swords } from 'lucide-react';
-import { Card, Button, Spinner } from '../components/ui';
+import { ChevronLeft, ChevronRight, Swords } from 'lucide-react';
+import { Button, Spinner } from '../components/ui';
 import { userService } from '../services/userService';
 
 const PAGE_SIZE = 25;
@@ -44,42 +44,41 @@ export function LeaderboardPage() {
       <header className="page-header">
         <div>
           <h1 className="page-title">Leaderboard</h1>
-          <p className="page-subtitle">Players ranked by Elo rating from 1v1 battles.</p>
+          <p className="page-subtitle">Ranked by Elo from finished battles. Equal ratings share a rank.</p>
         </div>
       </header>
 
       {me && (
-        <Card className="leaderboard-me-card">
-          <div className="leaderboard-me-stat">
-            <span className="stat-label">Your rank</span>
-            <span className="stat-value">{me.rank ? `#${me.rank}` : 'Unranked'}</span>
+        <section className="scorecard" aria-label="Your standing">
+          <div>
+            <span className="eyebrow">Your rank</span>
+            <span className="scorecard-value">{me.rank ? `#${me.rank}` : '—'}</span>
           </div>
-          <div className="leaderboard-me-stat">
-            <span className="stat-label">Rating</span>
-            <span className="stat-value">{me.rating}</span>
+          <div>
+            <span className="eyebrow">Rating</span>
+            <span className="scorecard-value">{me.rating}</span>
           </div>
-          <div className="leaderboard-me-stat">
-            <span className="stat-label">W / L / D</span>
-            <span className="stat-value">
-              {me.wins} / {me.losses} / {me.draws}
+          <div>
+            <span className="eyebrow">W / L / D</span>
+            <span className="scorecard-value">
+              {me.wins}/{me.losses}/{me.draws}
             </span>
           </div>
-          <div className="leaderboard-me-stat">
-            <span className="stat-label">Win rate</span>
-            <span className="stat-value">{me.games ? `${me.winRate}%` : '—'}</span>
+          <div>
+            <span className="eyebrow">Win rate</span>
+            <span className="scorecard-value">{me.games ? `${me.winRate}%` : '—'}</span>
           </div>
-          {!me.rank && <p className="problem-desc">Finish a battle to appear on the leaderboard.</p>}
-        </Card>
+          {!me.rank && <p className="scorecard-note">Finish one battle to get ranked.</p>}
+        </section>
       )}
 
-      <Card>
+      <section className="panel" aria-label="Rankings">
         {loading ? (
           <div className="placeholder-content">
             <Spinner label="Loading leaderboard" />
           </div>
         ) : error ? (
           <div className="placeholder-content">
-            <Trophy size={40} style={{ color: 'var(--color-danger)' }} />
             <h3>Could not load the leaderboard</h3>
             <p>{error}</p>
             <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
@@ -88,9 +87,8 @@ export function LeaderboardPage() {
           </div>
         ) : entries.length === 0 ? (
           <div className="placeholder-content">
-            <Trophy size={48} className="placeholder-icon" />
-            <h2>No ranked players yet</h2>
-            <p>Players appear here after finishing their first battle.</p>
+            <h3>No ranked players yet</h3>
+            <p>Players appear here after their first finished battle.</p>
             <Link to="/battles">
               <Button variant="primary">
                 <Swords size={16} /> Start a battle
@@ -99,16 +97,16 @@ export function LeaderboardPage() {
           </div>
         ) : (
           <>
-            <div className="leaderboard-table-wrap">
-              <table className="leaderboard-table">
+            <div className="sheet-table-wrap">
+              <table className="sheet-table" style={{ minWidth: '560px' }}>
                 <thead>
                   <tr>
                     <th>Rank</th>
                     <th>Player</th>
                     <th className="numeric">Rating</th>
-                    <th className="numeric">Wins</th>
-                    <th className="numeric">Losses</th>
-                    <th className="numeric">Draws</th>
+                    <th className="numeric">W</th>
+                    <th className="numeric">L</th>
+                    <th className="numeric">D</th>
                     <th className="numeric">Win rate</th>
                   </tr>
                 </thead>
@@ -116,16 +114,14 @@ export function LeaderboardPage() {
                   {entries.map((entry) => (
                     <tr key={entry.id} className={entry.id === me?.id ? 'is-me' : ''}>
                       <td>
-                        <span className={`leaderboard-rank ${entry.rank <= 3 ? 'top' : ''}`}>{entry.rank}</span>
+                        <span className={`rank-cell${entry.rank <= 3 ? ` rank-${entry.rank}` : ''}`}>{entry.rank}</span>
                       </td>
                       <td>
-                        <div className="leaderboard-player">
-                          <span className="leaderboard-avatar">{entry.username.slice(0, 2).toUpperCase()}</span>
-                          <span>
-                            {entry.username}
-                            {entry.id === me?.id ? ' (you)' : ''}
-                          </span>
-                        </div>
+                        <Link to={`/u/${encodeURIComponent(entry.username)}`} className="row-link">
+                          <span className="player-initials">{entry.username.slice(0, 2).toUpperCase()}</span>
+                          {entry.username}
+                          {entry.id === me?.id && <span className="muted">(you)</span>}
+                        </Link>
                       </td>
                       <td className="numeric">
                         <strong>{entry.rating}</strong>
@@ -157,7 +153,7 @@ export function LeaderboardPage() {
             )}
           </>
         )}
-      </Card>
+      </section>
     </div>
   );
 }
