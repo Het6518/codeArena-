@@ -37,6 +37,12 @@ const NAV_ITEMS = [
     badge: null,
   },
   {
+    path: '/activity',
+    label: 'Live Activity',
+    icon: Zap,
+    badge: 'Vue',
+  },
+  {
     path: '/settings',
     label: 'Settings',
     icon: SlidersHorizontal,

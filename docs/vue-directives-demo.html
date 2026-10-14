@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue.js Custom Directives Showcase | CodeArena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <!-- Vue 3 CDN (production-ready global build) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --surface: #14171d;
+      --card: #161a22;
+      --border: #262c36;
+      --border-subtle: #1e232d;
+      --fg: #f0f6fc;
+      --muted: #8b949e;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --accent-subtle: rgba(59, 130, 246, 0.15);
+      --success: #3fb950;
+      --success-bg: rgba(63, 185, 80, 0.12);
+      --danger: #f85149;
+      --danger-bg: rgba(248, 81, 73, 0.12);
+      --warning: #d29922;
+      --font-body: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 32px 20px 80px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header.top-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .badge-pill {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border-radius: 999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h1 {
+      font-size: 26px;
+      margin: 0 0 6px 0;
+      font-weight: 700;
+    }
+    h1 span {
+      color: var(--accent);
+    }
+    p.lead {
+      color: var(--muted);
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 28px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      position: relative;
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-subtitle {
+      color: var(--muted);
+      font-size: 13.5px;
+      margin: 0 0 20px 0;
+    }
+
+    /* Section I: Uppercase directive styles */
+    .uppercase-preview-area {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--surface);
+      padding: 18px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 16px;
+    }
+    .click-target {
+      display: inline-block;
+      padding: 8px 14px;
+      background: var(--card);
+      border: 1px dashed var(--accent);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .click-target:hover {
+      background: var(--accent-subtle);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    .click-target.badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+    .hint-label {
+      font-size: 11.5px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* Section II: Dynamic List directive styles */
+    .dynamic-list-container {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dynamic-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      transition: background 0.15s ease;
+    }
+    .dynamic-list-item:hover {
+      background: #1c212a;
+    }
+    .dynamic-list-striped .dynamic-list-item:nth-child(even) {
+      background: #10141a;
+    }
+    .dynamic-list-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 7px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      color: var(--accent);
+      font-weight: 600;
+      flex: none;
+    }
+    .dynamic-list-content {
+      flex: 1;
+      font-size: 13.5px;
+    }
+    .dynamic-list-subtext {
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+    .dynamic-list-remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .dynamic-list-remove-btn:hover {
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+    .dynamic-list-empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+    }
+
+    /* Section III: Date formatting styles */
+    .date-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-top: 12px;
+    }
+    .date-table th, .date-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      text-align: left;
+    }
+    .date-table th {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Controls & Buttons */
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    button.btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button.btn:hover {
+      background: #1c212a;
+      border-color: var(--accent);
+    }
+    button.btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button.btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Code block tabs */
+    pre.code-snippet {
+      background: #06080a;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: #e6edf3;
+      overflow-x: auto;
+      margin-top: 14px;
+    }
+    .code-comment { color: #8b949e; }
+    .code-keyword { color: #ff7b72; }
+    .code-string  { color: #a5d6ff; }
+    .code-attr    { color: #79c0ff; }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.08);
+      color: var(--fg);
+    }
+    .tag-success { background: var(--success-bg); color: var(--success); }
+    .tag-danger  { background: var(--danger-bg);  color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div id="app" class="container">
+  <!-- Header -->
+  <header class="top-header">
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <span class="badge-pill">CodeArena Project</span>
+        <span class="badge-pill" style="background: rgba(63, 185, 80, 0.15); color: #3fb950;">Vue 3 Directives</span>
+      </div>
+      <h1>Vue.js <span>Custom Directives</span> Interactive Showcase</h1>
+      <p class="lead">Demonstrating low-level DOM manipulation, lifecycle hooks, and project integration through HTML web pages.</p>
+    </div>
+  </header>
+
+  <div class="demo-grid">
+
+    <!-- ================================================================= -->
+    <!-- I. CUSTOM DIRECTIVE: UPPERCASE ON CLICK                           -->
+    <!-- ================================================================= -->
+    <section class="card">
+      <div class="card-title">
+        <span class="badge-pill">Part I</span>
+        <span>v-uppercase-click &bull; Text Uppercase on Click</span>
+      </div>
+      <p class="card-subtitle">
+        Transforms text content to uppercase when clicked. Supports modifier <code>.toggle</code> to cycle between original case and uppercase, plus custom callbacks.
+      </p>
+
+      <div class="uppercase-preview-area">
+        <div>
+          <span class="hint-label">Standard Directive (<code>v-uppercase-click</code>):</span>
+          <br>
+          <div v-uppercase-click class="click-target" style="margin-top: 6px;">
+            👉 Click me: battle room <code>#battle-8924-arena</code>
+          </div>
+        </div>
+
+        <div>
+          <span class="hint-label">With <code>.toggle</code> Modifier (click back and forth):</span>
+          <br>
+          <div v-uppercase-click.toggle class="click-target" style="margin-top: 6px;">
+            🔄 Click to toggle case: "two-sum-algorithmic-challenge"
+          </div>
+        </div>
+
+        <div>
+          <span class="hint-label">Player Username Badges (Click each to uppercase):</span>
+          <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+            <span v-uppercase-click.toggle class="click-target badge tag-success">
+              🏆 alex_coder99
+            </span>
+            <span v-uppercase-click.toggle class="click-target badge tag-danger">
+              ⚔️ rival_master
+            </span>
+            <span v-uppercase-click.toggle class="click-target badge">
+              ⚡ hacker_bot
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <span class="hint-label">Input Element Support:</span>
+          <div style="margin-top: 6px; display: flex; gap: 8px; align-items: center;">
+            <input 
+              v-uppercase-click 
+              v-model="customInputText" 
+              placeholder="Click inside this input to uppercase" 
+              style="padding: 7px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 6px; width: 320px;"
+            />
+            <span class="hint-label">&larr; Click the input field</span>
+          </div>
+        </div>
+      </div>
+
+      <pre class="code-snippet"><code><span class="code-comment">// Definition of v-uppercase-click</span>
+<span class="code-keyword">const</span> uppercaseClickDirective = {
+  mounted(el, binding) {
+    el._originalText = el.textContent;
+    el.style.cursor = <span class="code-string">'pointer'</span>;
+    el.addEventListener(<span class="code-string">'click'</span>, () =&gt; {
+      <span class="code-keyword">if</span> (binding.modifiers.toggle &amp;&amp; el._isUpper) {
+        el.textContent = el._originalText;
+        el._isUpper = <span class="code-keyword">false</span>;
+      } <span class="code-keyword">else</span> {
+        el.textContent = el.textContent.toUpperCase();
+        el._isUpper = <span class="code-keyword">true</span>;
+      }
+    });
+  },
+  unmounted(el) {
+    el.removeEventListener(<span class="code-string">'click'</span>, el._handler);
+  }
+};</code></pre>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- II. CUSTOM DIRECTIVE: DYNAMIC LIST                                -->
+    <!-- ================================================================= -->
+    <section class="card">
+      <div class="card-title">
+        <span class="badge-pill">Part II</span>
+        <span>v-dynamic-list &bull; Dynamic List Rendering Directive</span>
+      </div>
+      <p class="card-subtitle">
+        Custom directive that imperatively reconciles, filters, and renders list elements from reactive data with animated entrances and badge indexing.
+      </p>
+
+      <div class="btn-group">
+        <button class="btn btn-primary" @click="addBattle">⚔️ Simulate New Battle</button>
+        <button class="btn" @click="filterOnlyWins">🏆 Toggle Filter (Wins Only)</button>
+        <button class="btn" @click="resetBattles">🔄 Reset Sample Data</button>
+        <button class="btn" @click="clearBattles" style="color: var(--danger)">🗑️ Clear List</button>
+      </div>
+
+      <!-- The custom dynamic list directive in action -->
+      <ul v-dynamic-list.animated.badges.striped="dynamicListConfig"></ul>
+
+      <pre class="code-snippet"><code><span class="code-comment">&lt;!-- Usage in HTML --&gt;</span>
+&lt;<span class="code-attr">ul</span> <span class="code-keyword">v-dynamic-list.animated.badges.striped</span>=<span class="code-string">"{ items: battles, onRemove: handleRemove }"</span>&gt;&lt;/<span class="code-attr">ul</span>&gt;</code></pre>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- III. CUSTOM DIRECTIVE: HUMAN-READABLE DATE FORMATTING             -->
+    <!-- ================================================================= -->
+    <section class="card">
+      <div class="card-title">
+        <span class="badge-pill">Part III</span>
+        <span>v-date-format &bull; Human-Readable Dates Across Project Use Cases</span>
+      </div>
+      <p class="card-subtitle">
+        Formats timestamps and ISO dates into human-readable text (relative timeago, localized full dates, times, and compact formats) with live auto-refresh!
+      </p>
+
+      <table class="date-table">
+        <thead>
+          <tr>
+            <th>Use Case in Project</th>
+            <th>Directive Syntax</th>
+            <th>Raw ISO Value</th>
+            <th>Rendered Output</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Live Battle Room Start</strong>
+              <div style="font-size: 11px; color: var(--muted);"><span class="live-dot"></span>Auto-refreshes every 15s</div>
+            </td>
+            <td><code>v-date-format:relative</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.liveBattle }}</td>
+            <td>
+              <span class="tag tag-success" v-date-format:relative="sampleDates.liveBattle"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Recent Match Finished</strong>
+              <div style="font-size: 11px; color: var(--muted);">Relative timeago format</div>
+            </td>
+            <td><code>v-date-format:relative</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.recentMatch }}</td>
+            <td>
+              <span v-date-format:relative="sampleDates.recentMatch"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Submission Audit Log</strong>
+              <div style="font-size: 11px; color: var(--muted);">Full date and exact time</div>
+            </td>
+            <td><code>v-date-format:datetime</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.submissionAudit }}</td>
+            <td>
+              <span style="font-weight: 500;" v-date-format:datetime="sampleDates.submissionAudit"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Problem Publication Date</strong>
+              <div style="font-size: 11px; color: var(--muted);">Standard readable date</div>
+            </td>
+            <td><code>v-date-format:date</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.problemPublished }}</td>
+            <td>
+              <span v-date-format:date="sampleDates.problemPublished"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Execution Clock Time</strong>
+              <div style="font-size: 11px; color: var(--muted);">Time only</div>
+            </td>
+            <td><code>v-date-format:time</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.executionTime }}</td>
+            <td>
+              <span v-date-format:time="sampleDates.executionTime"></span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>User Account Created</strong>
+              <div style="font-size: 11px; color: var(--muted);">Compact date format</div>
+            </td>
+            <td><code>v-date-format:compact</code></td>
+            <td style="font-family: var(--font-mono); font-size: 11px; color: var(--muted);">{{ sampleDates.userRegistered }}</td>
+            <td>
+              <span class="tag" v-date-format:compact="sampleDates.userRegistered"></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Interactive date tester -->
+      <div style="margin-top: 24px; padding: 16px; background: var(--surface); border-radius: 6px; border: 1px solid var(--border-subtle);">
+        <strong style="display: block; margin-bottom: 8px;">Interactive Custom Date Tester:</strong>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <input 
+            type="datetime-local" 
+            v-model="customDateInput" 
+            style="padding: 6px 10px; background: var(--card); border: 1px solid var(--border); color: var(--fg); border-radius: 6px;"
+          />
+          <button class="btn" @click="setMinutesAgo(5)">-5 mins</button>
+          <button class="btn" @click="setMinutesAgo(120)">-2 hrs</button>
+          <button class="btn" @click="setMinutesAgo(1440)">-1 day</button>
+          <button class="btn" @click="setNow">Set to Now</button>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 24px; flex-wrap: wrap;">
+          <div>Relative: <strong v-date-format:relative="customDateInput"></strong></div>
+          <div>DateTime: <strong v-date-format:datetime="customDateInput"></strong></div>
+          <div>Date: <strong v-date-format:date="customDateInput"></strong></div>
+          <div>Time: <strong v-date-format:time="customDateInput"></strong></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue;
+
+// ============================================================================
+// I. DIRECTIVE: v-uppercase-click
+// ============================================================================
+const uppercaseClickDirective = {
+  mounted(el, binding) {
+    const isInput = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+    el._originalText = isInput ? el.value : el.textContent;
+    el._isUpper = false;
+    el.style.cursor = 'pointer';
+
+    el._handler = (e) => {
+      if (binding.modifiers.toggle) {
+        if (el._isUpper) {
+          if (isInput) {
+            el.value = el._originalText;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          } else {
+            el.textContent = el._originalText;
+          }
+          el._isUpper = false;
+        } else {
+          el._originalText = isInput ? el.value : el.textContent;
+          const upper = (isInput ? el.value : el.textContent).toUpperCase();
+          if (isInput) {
+            el.value = upper;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          } else {
+            el.textContent = upper;
+          }
+          el._isUpper = true;
+        }
+      } else {
+        const upper = (isInput ? el.value : el.textContent).toUpperCase();
+        if (isInput) {
+          el.value = upper;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          el.textContent = upper;
+        }
+        el._isUpper = true;
+      }
+    };
+
+    el.addEventListener('click', el._handler);
+  },
+  unmounted(el) {
+    if (el._handler) {
+      el.removeEventListener('click', el._handler);
+    }
+  }
+};
+
+// ============================================================================
+// II. DIRECTIVE: v-dynamic-list
+// ============================================================================
+const dynamicListDirective = {
+  mounted(el, binding) {
+    renderDynamicList(el, binding);
+  },
+  updated(el, binding) {
+    renderDynamicList(el, binding);
+  },
+  unmounted(el) {
+    el.innerHTML = '';
+  }
+};
+
+function renderDynamicList(el, binding) {
+  const raw = binding.value;
+  let items = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.items) ? raw.items : []);
+  const options = (typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+
+  if (typeof options.filter === 'function') {
+    items = items.filter(options.filter);
+  }
+
+  el.innerHTML = '';
+  el.classList.add('dynamic-list-container');
+  if (binding.modifiers.striped) el.classList.add('dynamic-list-striped');
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'dynamic-list-empty';
+    empty.textContent = options.emptyText || 'No items available in dynamic list.';
+    el.appendChild(empty);
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.className = 'dynamic-list-item';
+
+    if (binding.modifiers.animated) {
+      li.style.animation = `fadeSlideIn 0.25s ease-out ${index * 0.04}s both`;
+    }
+
+    if (binding.modifiers.badges) {
+      const badge = document.createElement('span');
+      badge.className = 'dynamic-list-badge';
+      badge.textContent = `#${index + 1}`;
+      li.appendChild(badge);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'dynamic-list-content';
+    content.innerHTML = `<strong>${item.title || item.name}</strong> <span class="dynamic-list-subtext">— ${item.subtitle || item.detail}</span>`;
+    li.appendChild(content);
+
+    if (typeof options.onRemove === 'function') {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'dynamic-list-remove-btn';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.title = 'Remove';
+      removeBtn.onclick = (e) => {
+        e.stopPropagation();
+        options.onRemove(item, index);
+      };
+      li.appendChild(removeBtn);
+    }
+
+    el.appendChild(li);
+  });
+}
+
+// ============================================================================
+// III. DIRECTIVE: v-date-format
+// ============================================================================
+const dateFormatDirective = {
+  mounted(el, binding) {
+    applyDateFormat(el, binding);
+    el._timer = setInterval(() => {
+      applyDateFormat(el, binding);
+    }, 15000); // 15s auto-refresh
+  },
+  updated(el, binding) {
+    applyDateFormat(el, binding);
+  },
+  unmounted(el) {
+    if (el._timer) clearInterval(el._timer);
+  }
+};
+
+function formatRelativeTime(date) {
+  const diffSec = Math.round((Date.now() - date.getTime()) / 1000);
+  if (Math.abs(diffSec) < 10) return 'just now';
+
+  const isFuture = diffSec < 0;
+  const abs = Math.abs(diffSec);
+  const units = [
+    { label: 'year', s: 31536000 },
+    { label: 'month', s: 2592000 },
+    { label: 'day', s: 86400 },
+    { label: 'hour', s: 3600 },
+    { label: 'minute', s: 60 },
+    { label: 'second', s: 1 }
+  ];
+
+  for (const u of units) {
+    const count = Math.floor(abs / u.s);
+    if (count >= 1) {
+      const plural = count === 1 ? u.label : `${u.label}s`;
+      return isFuture ? `in ${count} ${plural}` : `${count} ${plural} ago`;
+    }
+  }
+  return 'just now';
+}
+
+function applyDateFormat(el, binding) {
+  if (!binding.value) {
+    el.textContent = '—';
+    return;
+  }
+  const date = new Date(binding.value);
+  if (isNaN(date.getTime())) {
+    el.textContent = String(binding.value);
+    return;
+  }
+
+  el.title = `${date.toLocaleString()} (ISO: ${date.toISOString()})`;
+  const mode = binding.arg || 'relative';
+
+  switch (mode) {
+    case 'datetime':
+      el.textContent = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(date);
+      break;
+    case 'date':
+      el.textContent = new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(date);
+      break;
+    case 'time':
+      el.textContent = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(date);
+      break;
+    case 'compact':
+      el.textContent = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+      break;
+    case 'relative':
+    default:
+      el.textContent = formatRelativeTime(date);
+      break;
+  }
+}
+
+// ============================================================================
+// APP BOOTSTRAP
+// ============================================================================
+const app = createApp({
+  setup() {
+    const customInputText = ref('initial lowercase input text');
+
+    // Sample dynamic battles
+    const battles = ref([
+      { id: 1, title: 'Battle vs code_ninja', subtitle: 'VICTORY · Two Sum · 42ms runtime', result: 'WIN' },
+      { id: 2, title: 'Battle vs dev_wizard', subtitle: 'DEFEAT · Reverse Linked List · 110ms', result: 'LOSS' },
+      { id: 3, title: 'Battle vs rust_master', subtitle: 'VICTORY · Valid Palindrome · 28ms runtime', result: 'WIN' },
+      { id: 4, title: 'Battle vs algo_queen', subtitle: 'VICTORY · Merge Intervals · 74ms runtime', result: 'WIN' }
+    ]);
+
+    const onlyWins = ref(false);
+
+    const dynamicListConfig = computed(() => ({
+      items: battles.value,
+      emptyText: 'No battle logs found.',
+      filter: onlyWins.value ? (b => b.result === 'WIN') : null,
+      onRemove: (item) => {
+        battles.value = battles.value.filter(b => b.id !== item.id);
+      }
+    }));
+
+    function addBattle() {
+      const id = Date.now();
+      const opponents = ['shadow_coder', 'byte_sorcerer', 'matrix_hacker', 'zero_day'];
+      const opp = opponents[Math.floor(Math.random() * opponents.length)];
+      const win = Math.random() > 0.35;
+      battles.value.unshift({
+        id,
+        title: `Battle vs ${opp}`,
+        subtitle: `${win ? 'VICTORY' : 'DEFEAT'} · LRU Cache · ${Math.floor(Math.random() * 80) + 20}ms`,
+        result: win ? 'WIN' : 'LOSS'
+      });
+    }
+
+    function filterOnlyWins() {
+      onlyWins.value = !onlyWins.value;
+    }
+
+    function resetBattles() {
+      battles.value = [
+        { id: 1, title: 'Battle vs code_ninja', subtitle: 'VICTORY · Two Sum · 42ms runtime', result: 'WIN' },
+        { id: 2, title: 'Battle vs dev_wizard', subtitle: 'DEFEAT · Reverse Linked List · 110ms', result: 'LOSS' },
+        { id: 3, title: 'Battle vs rust_master', subtitle: 'VICTORY · Valid Palindrome · 28ms runtime', result: 'WIN' }
+      ];
+      onlyWins.value = false;
+    }
+
+    function clearBattles() {
+      battles.value = [];
+    }
+
+    // Date samples
+    const now = new Date();
+    const sampleDates = ref({
+      liveBattle: new Date(now.getTime() - 45 * 1000).toISOString(),
+      recentMatch: new Date(now.getTime() - 18 * 60 * 1000).toISOString(),
+      submissionAudit: new Date(now.getTime() - 3 * 3600 * 1000).toISOString(),
+      problemPublished: '2026-08-15T11:23:00Z',
+      executionTime: new Date().toISOString(),
+      userRegistered: '2026-01-10T09:00:00Z'
+    });
+
+    const customDateInput = ref(new Date(now.getTime() - 25 * 60 * 1000).toISOString().slice(0, 16));
+
+    function setMinutesAgo(mins) {
+      customDateInput.value = new Date(Date.now() - mins * 60 * 1000).toISOString().slice(0, 16);
+    }
+
+    function setNow() {
+      customDateInput.value = new Date().toISOString().slice(0, 16);
+    }
+
+    return {
+      customInputText,
+      dynamicListConfig,
+      addBattle,
+      filterOnlyWins,
+      resetBattles,
+      clearBattles,
+      sampleDates,
+      customDateInput,
+      setMinutesAgo,
+      setNow
+    };
+  }
+});
+
+// Register directives
+app.directive('uppercase-click', uppercaseClickDirective);
+app.directive('dynamic-list', dynamicListDirective);
+app.directive('date-format', dateFormatDirective);
+
+app.mount('#app');
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import { BattlesPage } from '../pages/BattlesPage';
 import { BattleRoomArenaPage } from '../pages/BattleRoomArenaPage';
 import { LeaderboardPage } from '../pages/LeaderboardPage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { ActivityFeedPage } from '../pages/ActivityFeedPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { RegisterPage } from '../features/auth/pages/RegisterPage';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -55,6 +56,10 @@ const router = createBrowserRouter([
       {
         path: '/leaderboard',
         element: <LeaderboardPage />,
+      },
+      {
+        path: '/activity',
+        element: <ActivityFeedPage />,
       },
       {
         path: '/settings',

@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { problemService } from '../services/problemService';
 import { userService } from '../services/userService';
 import { Link } from 'react-router-dom';
+import { VueBattleActivityFeed } from '../components/vue/VueBattleActivityFeed';
 
 const formatDuration = (ms) => {
   if (ms === null || ms === undefined) return null;
@@ -143,31 +144,8 @@ export function DashboardPage() {
           </div>
           {loading ? (
             <Spinner label="Loading battles" />
-          ) : battles.length === 0 ? (
-            <p className="problem-desc">You have not finished a battle yet.</p>
           ) : (
-            <ul className="recent-battles-list">
-              {battles.map((battle) => (
-                <li key={battle.roomCode}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <span className={`result-pill ${battle.result.toLowerCase()}`}>{battle.result}</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      vs {battle.opponent?.username || 'unknown'} · {battle.problem?.title || 'Problem removed'}
-                      {battle.endReason === 'FORFEIT' ? ' · forfeit' : ''}
-                    </span>
-                  </div>
-                  <span style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                    {formatDuration(battle.solveTimeMs) ? `${formatDuration(battle.solveTimeMs)} · ` : ''}
-                    {battle.ratingChange !== null && (
-                      <span className={`rating-delta ${battle.ratingChange >= 0 ? 'positive' : 'negative'}`}>
-                        {battle.ratingChange >= 0 ? '+' : ''}
-                        {battle.ratingChange}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <VueBattleActivityFeed initialBattles={battles} />
           )}
         </Card>
       </div>
