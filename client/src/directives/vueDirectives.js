@@ -122,7 +122,6 @@ export const dynamicListDirective = {
 
 function renderDynamicList(el, binding) {
   const raw = binding.value;
-  // Normalize configuration: raw can be an Array or an Object: { items, emptyText, renderItem, filter }
   let items = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.items) ? raw.items : []);
   const options = (typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
 
