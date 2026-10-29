@@ -15,13 +15,15 @@ initializeSocket(server);
 startBattleSweeper();
 
 // Open the first database connection before accepting traffic. On a cold or distant
-// database this takes seconds, and paying it up front avoids a burst of reconnecting
-// clients all waiting on it at once. Startup continues even if it fails.
+// database this takes seconds. Do not accept traffic if it cannot connect.
 prisma
   .$connect()
-  .catch((error) => console.error('Database warm-up failed:', error.message))
-  .finally(() => {
+  .then(() => {
     server.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
+  })
+  .catch((error) => {
+    console.error('Database connection failed:', error.message);
+    process.exit(1);
   });

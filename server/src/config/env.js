@@ -9,6 +9,10 @@ const validateEnv = () => {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
+  if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_URL) {
+    throw new Error('CLIENT_URL is required in production');
+  }
+
   if (!process.env.ONLINE_COMPILER_API_KEY) {
     console.warn('ONLINE_COMPILER_API_KEY is not set; code execution requests will fail.');
   }

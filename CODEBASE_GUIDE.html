@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LEETT / CodeArena — Codebase Guide</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #5b9cff;
+      --accent2: #7ee787;
+      --warn: #f0b429;
+      --border: #2d3a4f;
+      --code-bg: #0d1117;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "Cascadia Code", "Consolas", "Monaco", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f1419 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 2.5rem 1.5rem 2rem;
+    }
+    header h1 { margin: 0 0 0.5rem; font-size: 1.85rem; font-weight: 650; }
+    header p { margin: 0; color: var(--muted); max-width: 52rem; }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--surface2);
+      color: var(--accent2);
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+    }
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(15, 20, 25, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    main {
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    section { margin-bottom: 2.75rem; scroll-margin-top: 4rem; }
+    h2 {
+      font-size: 1.35rem;
+      margin: 0 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+      color: #fff;
+    }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.6rem; color: var(--accent); }
+    p, li { color: var(--text); }
+    li { margin-bottom: 0.35rem; }
+    ul { padding-left: 1.25rem; }
+    .muted { color: var(--muted); font-size: 0.92rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.1rem 1.25rem;
+      margin: 1rem 0;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+    pre, code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+    code { color: var(--accent2); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 0.75rem 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+    }
+    th { background: var(--surface2); color: #fff; font-weight: 600; }
+    td { background: var(--surface); }
+    .flow {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      white-space: pre;
+      color: var(--muted);
+    }
+    .highlight { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="badge">Documentation</span>
+    <h1>LEETT — CodeArena Codebase Guide</h1>
+    <p>
+      A full-stack competitive coding platform: practice problems with a Monaco editor,
+      run code against test cases, and duel other users in real-time battle rooms with Elo ratings.
+      The repo is split into <strong>client</strong> (React + Vite) and <strong>server</strong> (Express + Prisma + Socket.IO).
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <a href="#overview">Overview</a>
+    <a href="#stack">Tech stack</a>
+    <a href="#structure">Folder structure</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#data">Data model</a>
+    <a href="#api">REST API</a>
+    <a href="#sockets">WebSockets</a>
+    <a href="#execution">Code execution</a>
+    <a href="#battles">Battles &amp; ratings</a>
+    <a href="#frontend">Frontend routes</a>
+    <a href="#run">Run locally</a>
+    <a href="#ci">CI</a>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <h2>What this project does</h2>
+      <div class="grid2">
+        <div class="card">
+          <strong>Solo practice</strong>
+          <p class="muted">Browse published problems, read constraints and samples, write code in multiple languages, run against sample input, and submit for full grading (visible + hidden tests).</p>
+        </div>
+        <div class="card">
+          <strong>Live battles</strong>
+          <p class="muted">Create or join a room by code, pick difficulty, ready up, host starts the match. First correct solve (or timeout/forfeit rules) ends the battle; Elo updates and rematch is supported.</p>
+        </div>
+        <div class="card">
+          <strong>Social &amp; progress</strong>
+          <p class="muted">Profiles, leaderboard by rating, submission history, dashboard progress, theme toggle, JWT auth with protected app routes.</p>
+        </div>
+        <div class="card">
+          <strong>Admin</strong>
+          <p class="muted">Users with <code>ADMIN</code> role can create/update/delete problems and manage test cases via REST (protected middleware).</p>
+        </div>
+      </div>
+      <p class="muted">Product name in the UI: <strong>CodeArena</strong> (<code>client/src/constants/app.js</code>). Workspace folder name: <strong>LEETT</strong>.</p>
+    </section>
+
+    <section id="stack">
+      <h2>Tech stack</h2>
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Technologies</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Client</td><td>React 19, Vite 8, React Router 7, TanStack Query, Zustand, Axios, Monaco Editor, Tailwind-style CSS variables, Socket.IO client, Zod + React Hook Form</td></tr>
+          <tr><td>Server</td><td>Express 5, Node HTTP server, Socket.IO 4, Prisma 6 → PostgreSQL, bcrypt, JWT, CORS, rate limits on auth/execution</td></tr>
+          <tr><td>Execution</td><td>External “online compiler” API (<code>ONLINE_COMPILER_API_KEY</code>); provider in <code>server/src/execution/providers/</code></td></tr>
+          <tr><td>Tests</td><td>Node built-in test runner (<code>server/test/*.test.js</code>)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="structure">
+      <h2>Folder structure (high level)</h2>
+<pre>LEETT/
+├── client/                 # SPA frontend
+│   ├── src/
+│   │   ├── features/auth/  # Login, register, token storage, schemas
+│   │   ├── pages/          # Route-level screens (problems, battles, etc.)
+│   │   ├── components/     # UI, layout, editor, shared widgets
+│   │   ├── services/       # HTTP wrappers (problems, users, socket)
+│   │   ├── store/          # Zustand (auth, theme, app)
+│   │   └── router/         # AppRouter, ProtectedRoute
+│   └── vite.config.js
+├── server/
+│   ├── prisma/             # schema, migrations, seeds, importProblems
+│   └── src/
+│       ├── routes/         # Express routers → controllers
+│       ├── controllers/    # HTTP handlers
+│       ├── services/       # Business logic (auth, problems, submissions)
+│       ├── middleware/     # auth, admin, errors, rate limit
+│       ├── execution/      # Run code + map verdicts
+│       ├── battle/         # Battle lifecycle, Elo, timeout sweeper
+│       ├── room/           # Room CRUD + socket handlers
+│       ├── socket/         # IO setup + JWT socket auth
+│       ├── app.js          # Express app (no listen)
+│       └── server.js       # HTTP + socket + DB warm-up + listen
+└── .github/workflows/      # CI: server tests + client lint/build
+</pre>
+    </section>
+
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>One Node process serves REST under <code>/api/*</code> and WebSockets on the same port. The client talks HTTP for CRUD/submissions and sockets for battle lobbies.</p>
+      <div class="card flow">┌─────────────┐     REST (Axios)      ┌──────────────────┐
+│   Browser   │ ────────────────────► │  Express (app.js) │
+│  CodeArena  │                       │  + middleware     │
+└──────┬──────┘                       └────────┬─────────┘
+       │                                       │
+       │  Socket.IO (JWT in handshake)         │ Prisma
+       └──────────────────────────────────────►│ PostgreSQL
+                                               │
+                       Online Compiler API ◄───┘ executionService
+                       (submissions / run)</div>
+      <h3>Server entry flow</h3>
+      <ol>
+        <li><code>server.js</code> validates env (<code>DATABASE_URL</code>, <code>JWT_SECRET</code>), creates HTTP server from <code>app.js</code>, attaches Socket.IO, starts battle timeout sweeper, connects Prisma, then listens (default port <strong>5000</strong>).</li>
+        <li><code>app.js</code> mounts routes, security headers, JSON body limit 100kb, CORS from <code>CLIENT_URL</code> (default <code>http://localhost:5173</code>).</li>
+      </ol>
+      <h3>Client entry flow</h3>
+      <ol>
+        <li><code>main.jsx</code> → React Query provider, toast UI, <code>App.jsx</code>.</li>
+        <li><code>AppRouter.jsx</code> defines public routes (landing, login, register) and protected app shell (<code>AppLayout</code>) for dashboard, problems, battles, leaderboard, profile, settings.</li>
+        <li>API base: <code>VITE_API_BASE_URL</code> or <code>http://localhost:5000/api</code>; socket: <code>VITE_SOCKET_URL</code> or <code>http://localhost:5000</code>.</li>
+      </ol>
+    </section>
+
+    <section id="data">
+      <h2>Data model (Prisma)</h2>
+      <p>Defined in <code>server/prisma/schema.prisma</code>. PostgreSQL via <code>DATABASE_URL</code>.</p>
+      <table>
+        <thead>
+          <tr><th>Model</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>User</code></td><td>Auth, profile, Elo <code>rating</code>, W/L/D, role USER|ADMIN</td></tr>
+          <tr><td><code>Problem</code></td><td>Title, slug, description, difficulty, limits, publish flag, relations to tests &amp; submissions</td></tr>
+          <tr><td><code>TestCase</code></td><td>Input / expected output; <code>isHidden</code> for submission grading</td></tr>
+          <tr><td><code>Submission</code></td><td>User code run result; optional <code>battleRoomId</code> for battle submits</td></tr>
+          <tr><td><code>BattleRoom</code></td><td>Room code, status, host, selected problem, timers, winner, end reason, rematch code</td></tr>
+          <tr><td><code>BattleRoomPlayer</code></td><td>Membership, ready, host flag, solve time, rating before/after</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Enums: <code>ProblemDifficulty</code>, <code>SubmissionStatus</code>, <code>RoomStatus</code>, <code>BattleEndReason</code>, <code>UserRole</code>.</p>
+    </section>
+
+    <section id="api">
+      <h2>REST API (summary)</h2>
+      <table>
+        <thead>
+          <tr><th>Prefix</th><th>Notable endpoints</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GET /api/health</code></td><td>Liveness check</td></tr>
+          <tr><td><code>/api/auth</code></td><td><code>POST /register</code>, <code>POST /login</code>, <code>GET /me</code> (JWT)</td></tr>
+          <tr><td><code>/api/users</code></td><td><code>GET /me</code>, <code>GET /me/battles</code>, <code>GET /leaderboard</code>, <code>GET /:username/profile</code></td></tr>
+          <tr><td><code>/api/problems</code></td><td>List/get by slug; admin CRUD; per-problem submission history</td></tr>
+          <tr><td><code>/api/problems/:id/testcases</code></td><td>CRUD test cases (admin flows)</td></tr>
+          <tr><td><code>/api/submissions</code></td><td><code>POST /</code> grade submit, <code>POST /run</code> sample run, <code>GET /me</code>, progress, by id</td></tr>
+        </tbody>
+      </table>
+      <p>Auth: Bearer JWT from login/register, validated in <code>authMiddleware</code>. Admin routes use <code>requireAdmin</code>. Execution routes use <code>executionLimiter</code>.</p>
+    </section>
+
+    <section id="sockets">
+      <h2>WebSockets (battle rooms)</h2>
+      <p>Connection authenticated in <code>socketAuth</code> (same JWT as REST). Handlers in <code>room/roomSocketHandlers.js</code>.</p>
+      <table>
+        <thead>
+          <tr><th>Client → server event</th><th>Behavior (short)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>create-room</code></td><td>Host creates lobby; optional difficulty filter</td></tr>
+          <tr><td><code>join-room</code></td><td>Join by room code</td></tr>
+          <tr><td><code>player-ready</code> / <code>player-unready</code></td><td>Ready state; host can start when rules satisfied</td></tr>
+          <tr><td><code>set-difficulty</code></td><td>Lobby difficulty (host)</td></tr>
+          <tr><td><code>request-rematch</code></td><td>Post-battle rematch flow</td></tr>
+          <tr><td><code>leave-room</code></td><td>Leave lobby; forfeit if in battle</td></tr>
+          <tr><td><code>disconnect</code></td><td>Grace period in lobby; battle disconnect does not auto-remove player</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Server → client:</strong> <code>socket-connected</code>, <code>room-update</code>, <code>battle-end</code>, <code>battle-activity</code> (opponent submission activity), error payloads on failed actions.</p>
+      <p>Room channel name = <code>roomCode</code> (players join Socket.IO room with that id).</p>
+    </section>
+
+    <section id="execution">
+      <h2>Code execution pipeline</h2>
+      <ol>
+        <li>Client sends source + language + problem id (and optional battle context) to <code>POST /api/submissions</code> or <code>POST /api/submissions/run</code>.</li>
+        <li><code>submissionService</code> loads problem test cases (run may use sample only; submit runs hidden too).</li>
+        <li><code>executionService</code> calls <code>onlineCompilerProvider</code> per test case with stdin and time limits from the problem.</li>
+        <li>Outputs are normalized (line endings, trim) and compared; aggregate status → <code>SubmissionStatus</code> (AC, WA, TLE, etc.).</li>
+        <li>Battle submissions go through <code>battleService.validateBattleSubmission</code> then may finalize the room on AC via winner/Elo logic.</li>
+      </ol>
+      <p class="highlight">Requires <code>ONLINE_COMPILER_API_KEY</code> in server env; without it, execution fails (startup warns).</p>
+    </section>
+
+    <section id="battles">
+      <h2>Battles &amp; ratings</h2>
+      <ul>
+        <li><code>room/roomService.js</code> — room codes, player lists, start battle, problem selection, serialization for clients.</li>
+        <li><code>battle/battleService.js</code> — submission validation, finalize on solve/forfeit/timeout, Elo via <code>battle/rating.js</code>, emits socket updates.</li>
+        <li><code>battle/winner.js</code> — outcome rules, battle deadline from <code>startedAt + durationMs</code> (default 30 minutes).</li>
+        <li><code>startBattleSweeper()</code> — periodic job closes expired <code>IN_PROGRESS</code> battles (survives restarts).</li>
+      </ul>
+    </section>
+
+    <section id="frontend">
+      <h2>Frontend routes</h2>
+      <table>
+        <thead>
+          <tr><th>Path</th><th>Page</th><th>Auth</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>LandingPage</td><td>Public</td></tr>
+          <tr><td><code>/login</code>, <code>/register</code></td><td>Auth pages</td><td>Public</td></tr>
+          <tr><td><code>/dashboard</code></td><td>DashboardPage</td><td>Protected</td></tr>
+          <tr><td><code>/problems</code></td><td>ProblemsPage</td><td>Protected</td></tr>
+          <tr><td><code>/problems/:slug</code></td><td>ProblemWorkspacePage (editor + submit)</td><td>Protected</td></tr>
+          <tr><td><code>/battles</code></td><td>BattlesPage (lobby list / create)</td><td>Protected</td></tr>
+          <tr><td><code>/battles/:roomCode</code></td><td>BattleRoomArenaPage</td><td>Protected</td></tr>
+          <tr><td><code>/leaderboard</code></td><td>LeaderboardPage</td><td>Protected</td></tr>
+          <tr><td><code>/u/:username</code></td><td>ProfilePage</td><td>Protected</td></tr>
+          <tr><td><code>/settings</code></td><td>SettingsPage</td><td>Protected</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Key UI: <code>CodeEditor.jsx</code> (Monaco), <code>VerdictBadge.jsx</code>, <code>RatingChart.jsx</code>, layout in <code>Navbar</code> / <code>Sidebar</code>.</p>
+    </section>
+
+    <section id="run">
+      <h2>Run locally</h2>
+      <div class="card">
+        <h3 style="margin-top:0;color:var(--text);">Prerequisites</h3>
+        <ul>
+          <li>Node 20+ (CI tests 20.x and 22.x)</li>
+          <li>PostgreSQL database</li>
+          <li>Online compiler API key (for run/submit)</li>
+        </ul>
+      </div>
+      <h3>Server</h3>
+<pre>cd server
+# .env: DATABASE_URL, JWT_SECRET, ONLINE_COMPILER_API_KEY, optional CLIENT_URL
+npm install
+npx prisma migrate deploy   # or migrate dev
+npm run seed                # optional sample data
+npm run dev                 # nodemon, port 5000
+</pre>
+      <h3>Client</h3>
+<pre>cd client
+npm install
+# optional: VITE_API_BASE_URL, VITE_SOCKET_URL
+npm run dev                 # Vite, default http://localhost:5173
+</pre>
+      <p class="muted">Helpful scripts: <code>npm run import:problems</code>, <code>npm run make-admin</code>, <code>npm run seed:execution</code> (server).</p>
+    </section>
+
+    <section id="ci">
+      <h2>Continuous integration</h2>
+      <p><code>.github/workflows/node.js.yml</code> on push/PR to <code>main</code>:</p>
+      <ul>
+        <li><strong>server job:</strong> <code>npm ci</code>, <code>prisma validate/generate</code>, <code>npm test</code> (matrix Node 20 &amp; 22)</li>
+        <li><strong>client job:</strong> <code>npm ci</code>, <code>npm run lint</code>, <code>npm run build</code></li>
+      </ul>
+      <p class="muted">There is no root <code>package.json</code>; install and run each package separately.</p>
+    </section>
+
+    <section id="files">
+      <h2>Files worth reading first</h2>
+      <table>
+        <thead>
+          <tr><th>File</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>server/prisma/schema.prisma</code></td><td>Single source of truth for domain entities</td></tr>
+          <tr><td><code>server/src/app.js</code></td><td>All HTTP mounts</td></tr>
+          <tr><td><code>server/src/services/submissionService.js</code></td><td>Submit/run orchestration</td></tr>
+          <tr><td><code>server/src/room/roomSocketHandlers.js</code></td><td>Real-time battle UX</td></tr>
+          <tr><td><code>client/src/router/AppRouter.jsx</code></td><td>Map URLs to features</td></tr>
+          <tr><td><code>client/src/pages/ProblemWorkspacePage.jsx</code></td><td>Core solo coding experience</td></tr>
+          <tr><td><code>client/src/pages/BattleRoomArenaPage.jsx</code></td><td>Core battle experience</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <p class="muted" style="margin-top:3rem;text-align:center;">
+      Generated guide for the LEETT repository — open this file in any browser. Last reviewed: October 2026.
+    </p>
+  </main>
+</body>
+</html>
